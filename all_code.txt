@@ -1,0 +1,1484 @@
+--- app/hooks/use-mobile.tsx ---
+// app/hooks/use-mobile.tsx
+import * as React from "react";
+
+const MOBILE_BREAKPOINT = 768;
+
+export function useIsMobile() {
+  // Initialize with a value based on the current window size if available,
+  // otherwise undefined (for SSR).
+  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+    return window.innerWidth < MOBILE_BREAKPOINT;
+  });
+
+  React.useEffect(() => {
+    // Ensure this effect only runs on the client
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+
+    const onChange = (event: MediaQueryListEvent) => {
+      setIsMobile(event.matches);
+    };
+
+    // Set initial state correctly based on mql.matches after mount
+    // This handles cases where the initial useState value might be stale
+    // if the window was resized before React hydrated.
+    setIsMobile(mql.matches);
+
+    // Safari < 14 compatibility for addEventListener/removeEventListener
+    if (mql.addEventListener) {
+      mql.addEventListener("change", onChange);
+    } else {
+      // Fallback for older browsers (deprecated)
+      mql.addListener(onChange);
+    }
+
+    return () => {
+      if (mql.removeEventListener) {
+        mql.removeEventListener("change", onChange);
+      } else {
+        mql.removeListener(onChange);
+      }
+    };
+  }, []); // Empty dependency array ensures this runs once on mount and cleans up on unmount
+
+  // Return false if undefined (e.g., during SSR or before first client-side effect)
+  // This provides a consistent boolean return type.
+  return isMobile === undefined ? false : isMobile;
+}--- app/root.tsx ---
+// app/root.tsx
+import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation } from "@remix-run/react";
+import type { LinksFunction } from "@remix-run/node";
+import "./tailwind.css";
+import { Progress } from "~/components/ui/progress"; // Import Progress
+import * as React from "react";
+import { Toaster } from 'sonner'; // Import Toaster
+
+export const links: LinksFunction = () => [
+  { rel: "preconnect", href: "https://fonts.googleapis.com" },
+  { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+  {
+    rel: "stylesheet",
+    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
+  },
+];
+
+// Script for theme-color meta tag, similar to Vercel's example
+const THEME_COLOR_LIGHT = 'hsl(0 0% 100%)'; // Example light theme color
+const THEME_COLOR_DARK = 'hsl(240 10% 3.9%)'; // Example dark theme color (adjust to your dark theme's bg)
+const THEME_COLOR_SCRIPT = `
+(function() {
+  var html = document.documentElement;
+  var meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.setAttribute('name', 'theme-color');
+    document.head.appendChild(meta);
+  }
+  function updateThemeColor() {
+    // Assuming you use a 'dark' class on <html> for dark mode
+    var isDark = html.classList.contains('dark');
+    meta.setAttribute('content', isDark ? '${THEME_COLOR_DARK}' : '${THEME_COLOR_LIGHT}');
+  }
+  // Initial call
+  updateThemeColor();
+  // Observe class changes on <html> for dark mode toggle
+  var observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+        updateThemeColor();
+      }
+    });
+  });
+  observer.observe(html, { attributes: true, attributeFilter: ['class'] });
+})();
+`;
+
+
+export function Layout({ children }: { children: React.ReactNode }) {
+  const navigation = useNavigation();
+  const [progressValue, setProgressValue] = React.useState(0);
+  const [showProgress, setShowProgress] = React.useState(false);
+
+  React.useEffect(() => {
+    let timer: NodeJS.Timeout | undefined;
+    if (navigation.state === "loading" || navigation.state === "submitting") {
+      setShowProgress(true);
+      setProgressValue(0); // Reset
+      let currentProgress = 10;
+      setProgressValue(currentProgress);
+      timer = setInterval(() => {
+        currentProgress += 15;
+        if (currentProgress < 90) {
+          setProgressValue(currentProgress);
+        } else {
+          // Stall progress
+        }
+      }, 200);
+    } else if (navigation.state === "idle") {
+      setProgressValue(100);
+      timer = setTimeout(() => setShowProgress(false), 300);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [navigation.state]);
+
+  return (
+    <html lang="en" className="h-dvh min-h-dvh" suppressHydrationWarning>
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" /> {/* Added maximum-scale=1 */}
+        <Meta />
+        <title>Krivi AI - Ignite & Flow</title>
+        <Links />
+        <script dangerouslySetInnerHTML={{ __html: THEME_COLOR_SCRIPT }} />
+      </head>
+      <body className="h-dvh min-h-dvh bg-background text-foreground antialiased">
+        {showProgress && (
+          <div className="fixed top-0 left-0 right-0 z-[9999] h-1"> {/* Increased z-index */}
+            <Progress value={progressValue} className="w-full h-full rounded-none bg-primary/30" />
+          </div>
+        )}
+        {children}
+        <ScrollRestoration />
+        <Scripts />
+        <Toaster richColors closeButton theme="system" position="top-center" /> {/* Added Toaster */}
+      </body>
+    </html>
+  );
+}
+export default function App() {
+  return <Outlet />;
+}--- app/routes/login.tsx ---
+import { useNavigate } from "@remix-run/react";
+import { FaGoogle } from "react-icons/fa";
+import { Button } from "~/components/ui/button"; // Assuming this is shadcn/ui Button or similar
+
+export default function LoginPage() {
+  const navigate = useNavigate();
+
+  const handleGoogleLogin = async () => {
+    try {
+      const googleAuthURL = "https://api-chat.kwikon.club/auth/google/login";
+      window.location.href = googleAuthURL;
+    } catch (error) {
+      console.error("Error during Google authentication:", error);
+      // Consider showing a user-facing error message here
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-background text-foreground px-4 py-8 sm:py-12">
+      <div className="max-w-md w-full bg-card text-card-foreground p-8 sm:p-10 rounded-xl shadow-2xl border border-border/70">
+        {/* App Branding */}
+        <div className="text-center mb-8">
+          {/* Optional: You can add an SVG logo here if you have one */}
+          {/* <img src="/path-to-your-logo.svg" alt="Krivi AI Logo" className="w-16 h-16 mx-auto mb-3" /> */}
+          <h1 className="text-4xl font-bold text-primary">
+            Krivi AI
+          </h1>
+        </div>
+
+        {/* Welcome Text */}
+        <h2 className="text-2xl sm:text-3xl font-semibold mb-3 text-center text-card-foreground">
+          Welcome!
+        </h2>
+        <p className="text-muted-foreground mb-8 text-sm sm:text-base text-center">
+          Sign in below, and we'll increase your message limits 😉
+        </p>
+
+        {/* Google Login Button */}
+        <Button
+          onClick={handleGoogleLogin}
+          className="flex items-center justify-center w-full py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary-foreground hover:text-primary transition-all duration-200 ease-in-out shadow-md hover:shadow-lg border border-border transform hover:scale-[1.02]"
+          // The original had shadow-lg, I've kept it as hover:shadow-lg and shadow-md for normal state.
+          // Added transform hover:scale-[1.02] for a subtle zoom, using transition-all.
+        >
+          <FaGoogle className="mr-3 text-xl" /> {/* Slightly larger icon */}
+          Sign in with Google
+        </Button>
+
+        {/* Terms */}
+        <p className="mt-10 text-xs text-center text-muted-foreground">
+          By continuing, you agree to our{" "}
+          <a
+            href="/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-accent-foreground underline hover:text-accent-foreground/80 focus:outline-none focus:ring-1 focus:ring-ring rounded-sm"
+            // Using text-accent-foreground for better contrast
+            // hover:text-accent-foreground/80 for a slightly dimmed hover
+          >
+            Terms of Service
+          </a>{" "}
+          and{" "}
+          <a
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-accent-foreground underline hover:text-accent-foreground/80 focus:outline-none focus:ring-1 focus:ring-ring rounded-sm"
+          >
+            Privacy Policy
+          </a>.
+        </p>
+      </div>
+    </div>
+  );
+}--- app/routes/_index.tsx ---
+// app/routes/_index.tsx
+import * as React from "react";
+import { useNavigate } from "@remix-run/react";
+import { ChatBox } from "~/components/chat-ui/ChatBox";
+import type { Message } from "~/components/chat-ui/ChatMessagesOutput";
+
+export default function IndexPage() {
+  const navigate = useNavigate();
+  // messages state for ChatBox. It will contain the user's first message and AI's first response
+  // before navigating away.
+  const [messages, setMessages] = React.useState<Message[]>([]);
+
+  // This handler receives the newChatId and the fully formed initialMessages
+  // (user's first query + AI's first response) from ChatBox.
+  function handleNewChatId(newChatId: string, initialMessages: Message[]) {
+    navigate(`/chat/${newChatId}`, {
+      replace: true, // Replace current URL (/), so back button doesn't go to empty index page
+      state: { initialMessages: initialMessages } // Pass the user's first message and AI's first response
+    });
+  }
+
+  return (
+    <ChatBox
+      chatId={undefined} // No chatId for a new chat on the index page
+      messages={messages}
+      onMessagesChange={setMessages} // ChatBox will update this with user's first message and AI's placeholder/response
+      onNewChatIdGenerated={handleNewChatId}
+    />
+  );
+}--- app/routes/chat.$chatId.tsx ---
+// app/routes/chat.$chatId.tsx  
+  
+import * as React from "react";  
+import { useParams, useLocation, useLoaderData, useNavigate, useNavigation } from "@remix-run/react";  
+import { json, LoaderFunctionArgs } from "@remix-run/node";  
+import { ChatBox } from "~/components/chat-ui/ChatBox";  
+import type { Message } from "~/components/chat-ui/ChatMessagesOutput";  
+// import { toast } from "sonner"; // Example: If you want to use toast for errors
+
+interface LoaderData {  
+  messages: Message[];  
+  error: string | null;  
+  chatId: string;  
+}  
+  
+export async function loader({ params, request }: LoaderFunctionArgs): Promise<ReturnType<typeof json<LoaderData>>> {  
+  const chatId = params.chatId;  
+  
+  if (!chatId) {  
+    console.error("ChatIdPage Loader: Chat ID parameter is missing.");  
+    return json({ messages: [], error: "Chat ID not found.", chatId: "" }, { status: 404 });  
+  }  
+  
+  const historyApiUrl = `https://api-chat.kwikon.club/api/chat/${chatId}/history?limit=50`;  
+  console.info("ChatIdPage Loader: Fetching history for chat", chatId, "from", historyApiUrl);  
+  
+  try {  
+    const cookieHeader = request.headers.get("Cookie");  
+    const fetchHeaders: HeadersInit = {};  
+    if (cookieHeader) {  
+      fetchHeaders["Cookie"] = cookieHeader;  
+    }  
+  
+    const response = await fetch(historyApiUrl, { 
+      headers: fetchHeaders,
+      cache: "no-cache" 
+    });  
+
+    if (!response.ok) {  
+      const errorText = await response.text().catch(() => `HTTP error ${response.status}`);  
+      console.error("ChatIdPage Loader: Failed to fetch chat history for", chatId, ":", response.status, response.statusText, ". Body:", errorText.substring(0, 500));  
+      return json({ messages: [], error: `Failed to load history: ${response.statusText || response.status}`, chatId });  
+    }  
+  
+    const historyData = await response.json();  
+    let fetchedMessages: Message[] = [];  
+  
+    if (Array.isArray(historyData)) {  
+      fetchedMessages = historyData;  
+    } else if (historyData && Array.isArray(historyData.messages)) {  
+      fetchedMessages = historyData.messages;  
+    } else if (historyData && Array.isArray(historyData.chatHistory)) {  
+      fetchedMessages = historyData.chatHistory;  
+    } else {  
+      console.warn("ChatIdPage Loader: Unexpected history data format for chat", chatId, ":", JSON.stringify(historyData).substring(0, 500));  
+    }  
+  
+    fetchedMessages = fetchedMessages.map((m, index) => ({  
+      id: m.id || `hist-${chatId}-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,  
+      role: m.role,  
+      content: m.content,  
+    }));  
+  
+    console.info("ChatIdPage Loader: Successfully fetched", fetchedMessages.length, "messages for chat", chatId);  
+    return json({ messages: fetchedMessages, error: null, chatId });  
+  } catch (error: any) {  
+    console.error("ChatIdPage Loader: Error fetching chat history for chat", chatId, ":", error.message, error);  
+    return json({ messages: [], error: error.message || "Could not connect to history service.", chatId });  
+  }  
+}  
+  
+export default function ChatIdPage() {  
+  const routeParams = useParams();  
+  const location = useLocation();  
+  const navigate = useNavigate();  
+  const loaderData = useLoaderData<typeof loader>();  
+  const navigation = useNavigation();  
+  
+  const chatIdFromRoute = routeParams.chatId!;
+  const derivedChatId = loaderData.chatId || chatIdFromRoute; 
+
+  const [messages, setMessagesInternal] = React.useState<Message[]>(() => {
+    const navMessages = (location.state as { initialMessages?: Message[] })?.initialMessages;
+    const initial = navMessages && navMessages.length > 0 ? navMessages : (loaderData.messages || []);
+    console.log(`ChatIdPage RENDER (useState init): chatId: ${derivedChatId}. Initializing messages. FromNav: ${!!navMessages}, FromLoader: ${!!loaderData.messages}. Count: ${initial.length}`);
+    return initial;
+  });
+
+  const [historyLoadError, setHistoryLoadError] = React.useState<string | null>(loaderData.error);
+  
+  // This ref helps manage the initial application of navState messages,
+  // ensuring they are not immediately overwritten by loaderData if navState is fresher.
+  const navStateAppliedRef = React.useRef(!!((location.state as { initialMessages?: Message[] })?.initialMessages));
+
+
+  const handleMessagesChange = React.useCallback((newMessagesOrCallback: Message[] | ((prev: Message[]) => Message[])) => {
+    console.log(`ChatIdPage: handleMessagesChange called from ChatBox. ChatId: ${derivedChatId}`);
+    setMessagesInternal(prevMessages => {
+        const updatedMessages = typeof newMessagesOrCallback === 'function'
+            ? newMessagesOrCallback(prevMessages)
+            : newMessagesOrCallback;
+        const lastOldMsg = prevMessages[prevMessages.length-1];
+        const lastNewMsg = updatedMessages[updatedMessages.length-1];
+        console.log(
+            `ChatIdPage: Messages updated in handleMessagesChange. ChatId: ${derivedChatId}. Old count: ${prevMessages.length}, New count: ${updatedMessages.length}. ` +
+            `Last old: ${lastOldMsg ? `${lastOldMsg.role.slice(0,1)}:${lastOldMsg.content.slice(0,20)}` : 'N/A'}. ` +
+            `Last new: ${lastNewMsg ? `${lastNewMsg.role.slice(0,1)}:${lastNewMsg.content.slice(0,20)}` : 'N/A'}.`
+        );
+        return updatedMessages;
+    });
+  }, [derivedChatId]); 
+
+  React.useEffect(() => {
+    console.log(`ChatIdPage: messages state changed (useEffect). ChatId: ${derivedChatId}. New count: ${messages.length}. Last message: ${messages[messages.length-1]?.content.slice(0,30) || 'N/A'}`);
+  }, [messages, derivedChatId]);
+
+
+  React.useEffect(() => {
+    const navState = location.state as { initialMessages?: Message[] };
+    if (navState?.initialMessages && navStateAppliedRef.current) {
+      console.log(`ChatIdPage: Clearing initialMessages from navigation state. ChatId: ${derivedChatId}`);
+      const { initialMessages: _removed, ...restOfState } = navState;
+      navigate(
+        location.pathname + location.search,
+        {
+          replace: true,
+          state: Object.keys(restOfState).length > 0 ? restOfState : null,
+        }
+      );
+      // Once cleared, mark that navState is no longer the primary source that needs protection.
+      navStateAppliedRef.current = false; 
+    }
+  }, [location.state, location.pathname, location.search, navigate, derivedChatId]);
+
+  React.useEffect(() => {
+    console.log(`ChatIdPage: loaderData effect. ChatId: ${derivedChatId}. LoaderData error: ${loaderData.error}, messages: ${loaderData.messages?.length}`);
+    if (loaderData.error) {
+      if (historyLoadError !== loaderData.error) {
+        setHistoryLoadError(loaderData.error);
+        // toast.error(`Error loading history: ${loaderData.error}`); // Example usage of toast
+        console.log(`ChatIdPage: History load error set: ${loaderData.error}. ChatId: ${derivedChatId}`);
+      }
+    } else if (loaderData.messages) {
+      // Only update from loaderData if it represents a genuinely different state,
+      // and we are not in a state where fresh navMessages just got applied and not yet cleared.
+      if (navStateAppliedRef.current && (location.state as { initialMessages?: Message[] })?.initialMessages) {
+          console.log(`ChatIdPage: loaderData received, but navState messages are still active and preferred. ChatId: ${derivedChatId}. Deferring loaderData application.`);
+      } else {
+        // Compare content, not IDs, as IDs can be generated differently
+        const currentMessagesContent = JSON.stringify(messages.map(m => ({role: m.role, content: m.content})));
+        const loaderMessagesContent = JSON.stringify(loaderData.messages.map(m => ({role: m.role, content: m.content})));
+
+        if (currentMessagesContent !== loaderMessagesContent) {
+            console.log(`ChatIdPage: Updating messages from new loaderData. ChatId: ${derivedChatId}. Loader count: ${loaderData.messages.length}, Current count: ${messages.length}`);
+            setMessagesInternal(loaderData.messages);
+        } else {
+            console.log(`ChatIdPage: loaderData messages are same as current. No update needed. ChatId: ${derivedChatId}`);
+        }
+      }
+      if (historyLoadError !== null) {
+        setHistoryLoadError(null);
+        console.log(`ChatIdPage: History load error cleared. ChatId: ${derivedChatId}`);
+      }
+    }
+  }, [loaderData, derivedChatId, messages, location.state, historyLoadError]); // Ensure all relevant dependencies are included
+
+
+  const isRouteLoading = navigation.state === "loading" && navigation.location?.pathname === location.pathname;
+  // Show loading if route is loading, there are no messages yet, and no error.
+  // OR if messages are empty, navStateAppliedRef is true (meaning we are expecting initialMessages from nav) but they haven't arrived.
+  const showExplicitPageLoadingMessage = 
+    (isRouteLoading && messages.length === 0 && !historyLoadError) ||
+    (messages.length === 0 && !historyLoadError && navStateAppliedRef.current && !!(location.state as { initialMessages?: Message[] })?.initialMessages);
+  
+  console.log(`ChatIdPage RENDER: ChatId: ${derivedChatId}, messages count: ${messages.length}, showExplicitPageLoading: ${showExplicitPageLoadingMessage}, historyLoadError: ${historyLoadError}, navStateAppliedRef: ${navStateAppliedRef.current}`);
+
+  return (  
+    <>  
+      {showExplicitPageLoadingMessage && (
+        <div className="flex items-center justify-center h-full pt-20">  
+          <div className="text-center">  
+            <p className="text-lg text-muted-foreground">Loading chat...</p>  
+          </div>  
+        </div>  
+      )}  
+  
+      {historyLoadError && !showExplicitPageLoadingMessage && ( 
+        <div  
+          className="p-4 m-4 text-sm text-destructive bg-destructive/10 rounded-lg dark:bg-red-200 dark:text-red-800 text-center"  
+          role="alert"  
+        >  
+          <span className="font-medium">Error:</span> Could not load chat history. {historyLoadError}  
+        </div>  
+      )}  
+  
+      {(!showExplicitPageLoadingMessage || (messages.length > 0 && historyLoadError)) && derivedChatId && ( // Show ChatBox even if there's a history error but we have some messages (e.g. from nav)
+        <ChatBox  
+          key={derivedChatId} 
+          chatId={derivedChatId}  
+          messages={messages}  
+          onMessagesChange={handleMessagesChange} 
+          onNewChatIdGenerated={(newChatId, initialMessagesFromChatBox) => {  
+            console.log(`ChatIdPage: Navigating to new chat ${newChatId} from ${derivedChatId} with initial messages:`, initialMessagesFromChatBox);
+            // When navigating to a new chat, set navStateAppliedRef for the new route
+            navStateAppliedRef.current = true; 
+            navigate(`/chat/${newChatId}`, {  
+              replace: true,  
+              state: { initialMessages: initialMessagesFromChatBox },  
+            });  
+          }}  
+        />  
+      )}  
+    </>  
+  );  
+}--- app/entry.client.tsx ---
+/**
+ * By default, Remix will handle hydrating your app on the client for you.
+ * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx remix reveal` ✨
+ * For more information, see https://remix.run/file-conventions/entry.client
+ */
+
+import { RemixBrowser } from "@remix-run/react";
+import { startTransition, StrictMode } from "react";
+import { hydrateRoot } from "react-dom/client";
+
+startTransition(() => {
+  hydrateRoot(
+    document,
+    <StrictMode>
+      <RemixBrowser />
+    </StrictMode>
+  );
+});
+--- app/components/chat-ui/ChatBox.tsx ---
+// app/components/chat-ui/ChatBox.tsx  
+  
+import * as React from "react";  
+import { ChatMessagesOutput, Message } from "./ChatMessagesOutput";  
+import { ChatInput } from "./ChatInput";  
+import modelList from "./ChatModelList.json"; 
+// import { useIsMobile } from "~/hooks/use-mobile"; // useIsMobile can be used if more specific mobile logic is needed here
+
+const EXTERNAL_API_URL = "https://api-chat.kwikon.club/api/chat/stream";  
+  
+interface ModelMeta {  
+  displayName: string;  
+  model: string;  
+  provider: string;  
+}  
+  
+interface ChatBoxProps {  
+  chatId: string | undefined; 
+  messages: Message[];  
+  onMessagesChange: React.Dispatch<React.SetStateAction<Message[]>>;  
+  onNewChatIdGenerated: (newChatId: string, initialMessages: Message[]) => void;  
+}  
+  
+export function ChatBox({  
+  chatId,  
+  messages, 
+  onMessagesChange, 
+  onNewChatIdGenerated,  
+}: ChatBoxProps) {  
+  console.log(`ChatBox RENDER: chatId: ${chatId}, PROPS messages count: ${messages.length}, last prop message: ${messages[messages.length-1]?.content.slice(0,30) || 'N/A'}`);
+
+  const [models] = React.useState<ModelMeta[]>(modelList);  
+  const [selectedModel, setSelectedModel] = React.useState<ModelMeta>(models[0]);  
+  const [input, setInput] = React.useState("");  
+  const [isLoading, setIsLoading] = React.useState(false);  
+  const [error, setError] = React.useState<Error | null>(null);  
+  
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);  
+  const chatInputWrapperRef = React.useRef<HTMLDivElement>(null);  
+  const [chatInputHeight, setChatInputHeight] = React.useState(90); // Default height
+  // const isMobile = useIsMobile(); // Available if needed
+  
+  React.useEffect(() => {  
+    const inputWrapper = chatInputWrapperRef.current;  
+    if (inputWrapper) {  
+      const updateHeight = () => {  
+        const newHeight = inputWrapper.offsetHeight;  
+        if (newHeight > 0 && newHeight !== chatInputHeight) { // Only update if changed
+            setChatInputHeight(newHeight);  
+        }
+      };  
+      updateHeight(); 
+      const resizeObserver = new ResizeObserver(updateHeight);  
+      resizeObserver.observe(inputWrapper);  
+      // No need for window resize listener if ResizeObserver handles textarea growth
+      // window.addEventListener("resize", updateHeight); 
+      return () => {  
+        // Check inputWrapper on cleanup as it might be unmounted
+        if (chatInputWrapperRef.current) { // Use ref.current for cleanup
+            resizeObserver.unobserve(chatInputWrapperRef.current);  
+        }
+        resizeObserver.disconnect();  
+        // window.removeEventListener("resize", updateHeight);  
+      };  
+    }  
+  }, [chatInputHeight]); // Re-run if chatInputHeight changes (e.g. initial value)
+  
+  React.useEffect(() => {
+    console.log(`ChatBox EFFECT [messages, isLoading, chatInputHeight]: PROPS messages count: ${messages.length}, Last prop message: ${messages[messages.length-1]?.content.slice(0,30) || 'N/A'}, isLoading: ${isLoading}`);
+    if (messagesEndRef.current) {  
+      const isAssistantStreaming =  
+        isLoading &&  
+        messages.length > 0 &&  
+        messages[messages.length - 1].role === "assistant";  
+      // Smoother scroll, consider 'auto' for streaming for less jumpiness if preferred
+      const scrollBehavior = isAssistantStreaming && messages[messages.length -1].content.length < 100 ? "auto" : "smooth";  
+  
+      requestAnimationFrame(() => {  
+        if (messagesEndRef.current) {  
+          messagesEndRef.current.scrollIntoView({ behavior: scrollBehavior, block: "end" });  
+        }  
+      });  
+    }  
+  }, [messages, isLoading, chatInputHeight]); 
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) =>  
+    setInput(e.target.value);  
+  
+  const handleModelChange = (modelValue: string) => {  
+    const found = models.find((m) => m.model === modelValue);  
+    if (found) setSelectedModel(found);  
+  };  
+  
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {  
+    e.preventDefault();  
+    if (!input.trim() || isLoading) return;  
+    console.log(`ChatBox handleSubmit: chatId: ${chatId}, Input: "${input.trim()}"`);
+    setError(null);  
+  
+    const newUserMsg: Message = {  
+      id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
+      role: "user",  
+      content: input.trim(),  
+    };  
+    
+    console.log(`ChatBox handleSubmit: Calling onMessagesChange to ADD USER message. ID: ${newUserMsg.id}, Content: "${newUserMsg.content.slice(0,30)}"`);
+    onMessagesChange((prevMsgs) => {
+      console.log(`ChatBox onMessagesChange (ADD USER) CB: prevMsgs count: ${prevMsgs.length}. Adding user msg ID: ${newUserMsg.id}`);
+      const newMsgs = [...prevMsgs, newUserMsg];
+      console.log(`ChatBox onMessagesChange (ADD USER) CB: newMsgs count: ${newMsgs.length}. Last is: ${newMsgs[newMsgs.length-1]?.id}`);
+      return newMsgs;
+    });  
+    setInput(""); 
+    setIsLoading(true);  
+    console.log(`ChatBox handleSubmit: Set isLoading to true. ChatId: ${chatId}`);
+  
+    const assistantMsgId = `assistant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    let accumulatedAssistantText = ""; 
+    console.log(`ChatBox handleSubmit: Generated assistantMsgId for upcoming stream: ${assistantMsgId}. ChatId: ${chatId}`);
+  
+    onMessagesChange((prevMsgs) => {
+      console.log(`ChatBox onMessagesChange (ADD ASSISTANT PLACEHOLDER) CB: prevMsgs count: ${prevMsgs.length}. Adding assistant placeholder ID: ${assistantMsgId}`);
+      return [
+        ...prevMsgs,
+        { id: assistantMsgId, role: "assistant", content: "" }, 
+      ];
+    });
+
+    try {  
+      const requestBody: {  
+        chatId?: string;  
+        message: string;  
+        systemPrompt?: string;  
+        provider: string;  
+        model: string;  
+      } = {  
+        message: newUserMsg.content,  
+        provider: selectedModel.provider,  
+        model: selectedModel.model,  
+      };  
+      if (chatId) {  
+        requestBody.chatId = chatId;  
+      }  
+      console.log(`ChatBox handleSubmit: Fetching stream. API URL: ${EXTERNAL_API_URL}. Current chatId prop: ${chatId}. Request body:`, requestBody);
+  
+      const response = await fetch(EXTERNAL_API_URL, {  
+        method: "POST",  
+        headers: { "Content-Type": "application/json" },  
+        credentials: "include",  
+        body: JSON.stringify(requestBody),  
+      });  
+  
+      if (!response.ok || !response.body) {  
+        const errorBody = await response.text().catch(() => "Failed to read error body");  
+        const apiError = new Error(  
+          `API error: ${response.status} - ${response.statusText}${  
+            errorBody  
+              ? `\nDetails: ${errorBody.substring(0, 200)}...`  
+              : ""  
+          }`  
+        );
+        console.error(`ChatBox handleSubmit: API error. ChatId: ${chatId}`, apiError);  
+        setError(apiError);  
+        onMessagesChange((prevMsgs) => {
+            console.log(`ChatBox handleSubmit API ERROR: Filtering assistantMsgId ${assistantMsgId} if present.`);
+            // Replace placeholder with error message or remove it
+            const assistantMsgIndex = prevMsgs.findIndex(msg => msg.id === assistantMsgId);
+            if (assistantMsgIndex !== -1) {
+              const updatedMessages = [...prevMsgs];
+              updatedMessages[assistantMsgIndex] = {
+                ...updatedMessages[assistantMsgIndex],
+                content: `Sorry, I encountered an error: ${response.statusText || 'Network error'}. Please try again.`, 
+                // You could add an 'error: true' property to Message type for special styling
+              };
+              return updatedMessages;
+            }
+            return prevMsgs.filter((m) => m.id !== assistantMsgId); // Fallback if not found (should be)
+        });
+        return;  
+      }  
+  
+      const reader = response.body.getReader();  
+      const decoder = new TextDecoder();  
+      let done = false;  
+      let buffer = "";  
+      let newChatIdFromStream: string | null = null;  
+      let finalUsageSummary: any = null;  
+      let firstChunkReceived = false;
+      
+      const processStreamData = (jsonStr: string) => {
+        try {  
+          const data = JSON.parse(jsonStr);  
+
+          if (data.type === "session_info" && data.chatId) {  
+            if (!chatId && !newChatIdFromStream) { 
+              newChatIdFromStream = data.chatId;  
+              console.log(`ChatBox processStreamData: Received newChatIdFromStream: ${newChatIdFromStream} (current chatId prop is ${chatId})`);
+            }  
+          } else if (data.type === "usage_summary") {  
+            finalUsageSummary = data;  
+            console.log(`ChatBox processStreamData: Received usage_summary for chatId ${chatId}.`);
+          } else if (typeof data.content === "string") { 
+            accumulatedAssistantText += data.content;  
+            if (!firstChunkReceived) firstChunkReceived = true;
+            
+            onMessagesChange((prevMsgs) => {
+              const assistantMsgIndex = prevMsgs.findIndex(msg => msg.id === assistantMsgId);
+              if (assistantMsgIndex !== -1) {
+                const updatedMessages = [...prevMsgs]; 
+                updatedMessages[assistantMsgIndex] = {
+                  ...updatedMessages[assistantMsgIndex],
+                  content: accumulatedAssistantText,
+                };
+                return updatedMessages;
+              }
+              return prevMsgs; 
+            });
+          }  
+        } catch (err) {  
+          console.warn(`ChatBox processStreamData: Error parsing stream data for chatId ${chatId}:`, err, "Data:", jsonStr);  
+        }  
+      };
+
+      console.log(`ChatBox handleSubmit: Starting stream read loop for assistantMsgId ${assistantMsgId}. ChatId: ${chatId}`);
+      while (!done) {  
+        const { value, done: doneReading } = await reader.read();  
+        if (value) {  
+          let chunk = decoder.decode(value, { stream: true });  
+          buffer += chunk;  
+  
+          const lines = buffer.split("\n");  
+          buffer = lines.pop()!; 
+  
+          for (const line of lines) {  
+            const cleanLine = line.trim();  
+            if (cleanLine === "" || cleanLine === "[DONE]" || cleanLine === "data: [DONE]") continue;  
+            if (cleanLine.startsWith("data:")) {  
+              processStreamData(cleanLine.substring(5).trim());
+            }  
+          }  
+        }  
+        done = doneReading;  
+      }
+      console.log(`ChatBox handleSubmit: Stream read loop finished for assistantMsgId ${assistantMsgId}. ChatId: ${chatId}`);  
+      
+      if (buffer.trim()) { 
+        const cleanLine = buffer.trim();  
+        if (cleanLine.startsWith("data:")) {
+          console.log(`ChatBox handleSubmit: Processing final buffer content for assistantMsgId ${assistantMsgId}. ChatId: ${chatId}`);  
+          processStreamData(cleanLine.substring(5).trim());
+        }  
+      }  
+
+      if (!firstChunkReceived && !error) { 
+        onMessagesChange(prevMsgs => {
+          const assistantMsg = prevMsgs.find(m => m.id === assistantMsgId);
+          if (assistantMsg && assistantMsg.content === "") {
+            console.log(`ChatBox handleSubmit: No content chunks received for ${assistantMsgId}, but stream ended ok. Ensuring content is explicitly empty or a placeholder.`);
+            // Could update to "No response received." if desired.
+            // For now, leaving it as empty string as per original logic.
+          }
+          return prevMsgs; 
+        });
+      }
+  
+      if (newChatIdFromStream && !chatId && onNewChatIdGenerated) {  
+        const confirmedNewChatId: string = newChatIdFromStream; 
+        console.log(`ChatBox handleSubmit: Calling onNewChatIdGenerated. New ChatId: ${confirmedNewChatId}. Accumulated AI Text: "${accumulatedAssistantText.slice(0,30)}"`);
+        
+        onMessagesChange(currentMessages => { // Use the callback form to get latest messages
+            const userMessageForNewChat = currentMessages.find(m => m.id === newUserMsg.id);
+            const assistantMessageForNewChat = currentMessages.find(m => m.id === assistantMsgId);
+
+            if (userMessageForNewChat && assistantMessageForNewChat) {
+                 onNewChatIdGenerated(confirmedNewChatId, [userMessageForNewChat, assistantMessageForNewChat]);
+            } else {
+                console.warn("ChatBox: Could not find user/assistant messages for onNewChatIdGenerated. Fallback may be incomplete.");
+                const fallbackAssistantMessage: Message = {  
+                  id: assistantMsgId,  
+                  role: "assistant",  
+                  content: accumulatedAssistantText, 
+                };  
+                onNewChatIdGenerated(confirmedNewChatId, [newUserMsg, fallbackAssistantMessage]);
+            }
+            return currentMessages; // No change to messages needed here
+        });
+      }  
+  
+    } catch (err: any) {  
+      console.error(`ChatBox handleSubmit: CATCH block for submission/streaming error. ChatId: ${chatId}:`, err);  
+      const newError = err instanceof Error ? err : new Error("Unknown error occurred during streaming.");
+      setError(newError);  
+      onMessagesChange((prevMsgs) => {
+          console.log(`ChatBox handleSubmit CATCH: Updating or filtering assistantMsgId ${assistantMsgId}.`);
+          const assistantMsgIndex = prevMsgs.findIndex(msg => msg.id === assistantMsgId);
+            if (assistantMsgIndex !== -1) {
+              const updatedMessages = [...prevMsgs];
+              updatedMessages[assistantMsgIndex] = {
+                ...updatedMessages[assistantMsgIndex],
+                content: `Sorry, an unexpected error occurred: ${newError.message}. Please try again.`,
+              };
+              return updatedMessages;
+            }
+          return prevMsgs.filter((m) => m.id !== assistantMsgId);
+      });
+    } finally {  
+      setIsLoading(false);  
+      console.log(`ChatBox handleSubmit: FINALLY block. Set isLoading to false. ChatId: ${chatId}`);
+    }  
+  };  
+  
+  const PADDING_BUFFER = 16; // Increased buffer slightly for better spacing
+  
+  return (  
+    <div className="flex flex-col h-dvh min-h-dvh w-full bg-background min-w-0">  
+      <div  
+        className="flex-1 overflow-y-auto pt-6 px-4 min-w-0"  
+        style={{  
+          paddingBottom:  
+            chatInputHeight > 0  
+              ? `${chatInputHeight + PADDING_BUFFER}px`  
+              : `${90 + PADDING_BUFFER}px`, // Fallback padding
+        }}  
+      >  
+        <div  
+          className={`max-w-3xl mx-auto w-full ${  
+            messages.length === 0 && !isLoading && !error 
+              ? "flex flex-col justify-center min-h-full" // For centering "Hello" message
+              : ""  
+          }`}  
+        >  
+          {error && !isLoading && ( // Show error only if not actively loading a new response
+            <div className="mb-4 p-4 rounded-lg border text-destructive border-destructive bg-destructive/10">  
+              <strong>Error:</strong> {error.message || "An error occurred."}  
+            </div>  
+          )}  
+          {messages.length === 0 && !isLoading && !error && (  
+            <div className="text-center py-8">  
+              <h1 className="text-4xl font-semibold text-foreground">Hello</h1>  
+              <p className="text-muted-foreground mt-2 text-lg">  
+                How can I help you today?  
+              </p>  
+            </div>  
+          )}  
+          {/* Always render ChatMessagesOutput if there are messages or if it's loading, to show placeholders */}
+          {(messages.length > 0 || isLoading) && (
+            <ChatMessagesOutput messages={messages} isLoading={isLoading} />  
+          )}  
+          <div ref={messagesEndRef} />  
+        </div>  
+      </div>  
+  
+      {/* Input Area Wrapper */}
+      <div 
+        ref={chatInputWrapperRef} 
+        className="px-4 bg-background border-t border-border/60 shadow- ऊपर" // Added border-t for separation
+      >  
+        <div className="max-w-[832px] mx-auto w-full py-2.5 md:py-3.5"> {/* Slightly adjusted padding */}
+          <ChatInput  
+            input={input}  
+            onChange={handleInputChange}  
+            onSubmit={handleSubmit}  
+            isLoading={isLoading}  
+            models={models}  
+            selectedModel={selectedModel.model}  
+            onModelChange={handleModelChange}  
+          />  
+        </div>  
+      </div>  
+    </div>  
+  );  
+}--- app/components/chat-ui/ChatMessagesOutput.tsx ---
+// app/components/chat-ui/ChatMessagesOutput.tsx
+import React from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import { MdCheckBoxOutlineBlank, MdCheckBox } from "react-icons/md";
+import { FiCopy, FiCheck } from "react-icons/fi";
+import type { Components } from "react-markdown";
+import 'highlight.js/styles/atom-one-dark.css';
+import { Riple } from 'react-loading-indicators';
+
+interface CodeProps extends React.HTMLAttributes<HTMLElement> {
+  inline?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+  node?: any;
+}
+interface ListItemProps extends React.LiHTMLAttributes<HTMLLIElement> {
+  checked?: boolean;
+  ordered?: boolean;
+  children?: React.ReactNode;
+}
+export interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+}
+interface HastNode {
+  type: "text" | "element";
+  value?: string;
+  children?: HastNode[];
+  tagName?: string;
+  properties?: Record<string, unknown>;
+}
+const extractText = (nodes?: HastNode[]): string => {
+  if (!nodes) return "";
+  return nodes
+    .map((node) => {
+      if (node.type === "text") return node.value || "";
+      if (node.children && node.type === "element") return extractText(node.children);
+      return "";
+    })
+    .join("");
+};
+
+const markdownComponents: Components = {
+  p: (props) => (
+    <p className="my-3 leading-relaxed text-base" {...props} />
+  ),
+  code: ({ node, inline, className, children, ...props }: CodeProps) => {
+    const match = /language-(\w+)/.exec(className || "");
+    let language = match ? match[1] : undefined;
+    if (language === "null" || language === "text" || language === "plaintext") {
+      language = undefined;
+    }
+    const isInlineNode = node?.type === "inlineCode" || node?.position?.start?.column === node?.position?.end?.column;
+    const content = children?.toString() || "";
+    const isSingleLine = !content.includes("\n");
+
+    if (inline !== false && (inline || isInlineNode || isSingleLine)) {
+      return (
+        <code
+          className={`bg-muted/50 text-foreground px-1.5 py-0.5 rounded font-mono text-sm ${className || ""}`}
+          {...props}
+        >
+          {children}
+        </code>
+      );
+    }
+    const rawCodeContent = node && "children" in node && node.children ? extractText(node.children as HastNode[]) : "";
+    const cleanedCodeForCopy = rawCodeContent.trim();
+
+    return (
+      <div className="relative rounded-lg overflow-hidden shadow-sm my-4 border border-border bg-card/50 dark:bg-zinc-900/50">
+        <div className="bg-muted/70 dark:bg-zinc-800/70 text-muted-foreground py-1.5 px-4 font-mono text-xs flex items-center justify-between border-b border-border">
+          {language ? (
+            <span className="uppercase tracking-wider">{language}</span>
+          ) : (
+            <span />
+          )}
+          <button
+            className="bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded px-2 py-0.5 text-xs transition-colors flex items-center gap-1 border border-transparent hover:border-border"
+            onClick={() => {
+              navigator.clipboard.writeText(cleanedCodeForCopy).catch((err) => {
+                console.error("Failed to copy code:", err);
+              });
+            }}
+            type="button"
+            aria-label="Copy code to clipboard"
+          >
+            <FiCopy size={14} />
+          </button>
+        </div>
+        <pre className="p-4 text-sm font-mono text-foreground overflow-x-auto" style={{ margin: 0, backgroundColor: 'transparent' }}>
+          <code className={className} {...props}>
+            {children}
+          </code>
+        </pre>
+      </div>
+    );
+  },
+  li: ({ children, checked, ordered, ...props }: ListItemProps) => {
+    if (typeof checked === "boolean") {
+      return (
+        <li
+          className="flex items-start gap-2 my-1.5 ml-0"
+          style={{ listStyle: "none" }}
+          {...props}
+        >
+          <span className="pt-0.5">
+            {checked ? (
+              <MdCheckBox size="1.2em" className="text-primary" />
+            ) : (
+              <MdCheckBoxOutlineBlank size="1.2em" className="text-muted-foreground" />
+            )}
+          </span>
+          <span className={checked ? "line-through text-muted-foreground" : ""}>
+            {children}
+          </span>
+        </li>
+      );
+    }
+    return (
+      <li
+        className={`ml-6 mb-1.5 ${ordered ? "list-decimal" : "list-disc"}`}
+        {...props}
+      >
+        {children}
+      </li>
+    );
+  },
+  h1: (props) => (
+    <h1 className="text-3xl font-bold my-4 pb-2 border-b border-border" {...props} />
+  ),
+  h2: (props) => (
+    <h2 className="text-2xl font-semibold my-3 pb-1 border-b border-border" {...props} />
+  ),
+  h3: (props) => (
+    <h3 className="text-xl font-semibold my-2" {...props} />
+  ),
+  blockquote: (props) => (
+    <blockquote className="my-3 pl-4 border-l-4 border-primary/50 italic text-muted-foreground bg-muted/20 py-2" {...props} />
+  ),
+  table: (props) => (
+    <div className="my-4 overflow-x-auto border border-border rounded-md">
+      <table className="min-w-full divide-y divide-border" {...props} />
+    </div>
+  ),
+  thead: (props) => <thead className="bg-muted/50 dark:bg-zinc-800/50" {...props} />,
+  tbody: (props) => <tbody className="divide-y divide-border bg-card" {...props} />,
+  tr: (props) => <tr className="hover:bg-muted/30 dark:hover:bg-zinc-700/30 transition-colors" {...props} />,
+  th: (props) => <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider" {...props} />,
+  td: (props) => <td className="px-4 py-2.5 text-sm text-foreground" {...props} />,
+  a: (props) => <a className="text-primary hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+};
+
+interface ChatMessagesOutputProps {
+  messages: Message[];
+  isLoading: boolean;
+}
+export function ChatMessagesOutput({ messages, isLoading }: ChatMessagesOutputProps) {
+  const [copiedMessageId, setCopiedMessageId] = React.useState<string | null>(null);
+
+  const handleCopy = (id: string, text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedMessageId(id);
+      setTimeout(() => setCopiedMessageId(null), 1800);
+    }).catch(err => {
+      // Optionally handle copy failure
+    });
+  };
+
+  return (
+    <div className="flex flex-col space-y-5 w-full">
+      {messages.map((msg, index) => {
+        const isUser = msg.role === "user";
+        const isAssistant = msg.role === "assistant";
+        const isStreamingAssistant = isAssistant && isLoading && index === messages.length - 1;
+        const isAssistantLoadingPlaceholder = isStreamingAssistant && msg.content === "";
+
+        const alignParent = isUser ? "justify-end" : "justify-start";
+        const alignCopy = isUser ? "flex-row-reverse" : "flex-row";
+
+        return (
+          <div
+            key={msg.id}
+            className={`flex flex-col w-full ${alignParent}`}
+          >
+            {/* Chat Card: Updated classes for user and assistant */}
+            <div
+              className={`
+                rounded-2xl shadow-sm break-words transition-all
+                ${isUser
+                  ? "bg-primary/20 text-primary border border-primary/20 rounded-br-lg p-2 md:p-2.5 w-fit max-w-[80%] self-end" // User: specific padding, w-fit, max-width 80%, self-end
+                  : "bg-card text-foreground border border-border rounded-bl-lg py-3 px-4 md:py-4 md:px-5 w-auto max-w-[90vw] sm:max-w-[480px] self-start" // Assistant: original padding, original width classes, self-start
+                }
+              `}
+              style={{
+                // For Assistant, to ensure it tries to take 100% width up to its caps if content is wide.
+                // For User, max-width is handled by Tailwind class.
+                maxWidth: isUser ? undefined : "100%",
+                minHeight: isAssistantLoadingPlaceholder ? "20px" : undefined,
+              }}
+            >
+              {isAssistantLoadingPlaceholder ? (
+                <div className="flex items-center justify-start h-full w-full">                  <Riple color="hsl(var(--foreground))" size="small" text="" textColor="" />
+                </div>
+              ) : (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeHighlight]}
+                  components={markdownComponents}
+                  skipHtml={false}
+                >
+                  {msg.content}
+                </ReactMarkdown>
+              )}
+              {isStreamingAssistant && msg.content.length > 0 && (
+                <span className="inline-block ml-1 animate-pulse">▍</span>
+              )}
+            </div>
+            {/* Copy Button Row (always shown) */}
+            <div className={`flex ${alignCopy} w-full mt-[3px]`}>
+              <button
+                onClick={() => handleCopy(msg.id, msg.content)}
+                className={`
+                  p-1.5 rounded-md flex items-center text-muted-foreground hover:text-foreground transition-colors duration-150 bg-transparent border-none
+                  focus:outline-none focus-visible:ring-1
+                `}
+                aria-label={copiedMessageId === msg.id ? "Copied to clipboard" : "Copy message to clipboard"}
+                title={copiedMessageId === msg.id ? "Copied!" : "Copy"}
+                style={{ marginTop: '2px', marginLeft: isAssistant ? '2px' : '0', marginRight: isUser ? '2px' : '0' }}
+                disabled={isAssistantLoadingPlaceholder}
+              >
+                {copiedMessageId === msg.id ? <FiCheck size={16} className="text-green-500" /> : <FiCopy size={16} />}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+
+      {isLoading &&
+        messages.length > 0 &&
+        messages[messages.length - 1]?.role === "user" && (
+          <div className="flex justify-start w-full">
+            <div
+              className="py-3 px-4 md:py-4 md:px-5 rounded-2xl shadow-sm break-words bg-card text-foreground border border-border rounded-bl-lg flex items-center space-x-2"
+              style={{
+                width: "auto",
+              }}
+            >
+              <span className="animate-pulse h-2 w-2 rounded-full bg-muted-foreground"></span>
+              <span className="animate-pulse h-2 w-2 rounded-full bg-muted-foreground" style={{ animationDelay: "100ms" }}></span>
+              <span className="animate-pulse h-2 w-2 rounded-full bg-muted-foreground" style={{ animationDelay: "200ms" }}></span>
+            </div>
+          </div>
+        )}
+    </div>
+  );
+}--- app/components/chat-ui/PageLayout.tsx ---
+import * as React from "react";  
+export function PageLayout({ children }: { children: React.ReactNode }) {  
+  return (  
+    <div className="min-h-screen bg-background">  
+      <div className="flex flex-col flex-1">  
+        {/* Add mobile header if needed */}  
+        <main className="flex-1 flex flex-col relative">  
+          {children}  
+        </main>  
+      </div>  
+    </div>  
+  );  
+}  --- app/components/chat-ui/Sidebar.tsx ---
+import { cn } from "~/lib/utils";  
+import { Home, MessageCircle, Settings } from "lucide-react";  
+import React from "react";  
+  
+const navItems = [  
+  { label: "Home", icon: <Home size={20} />, href: "#" },  
+  { label: "Chats", icon: <MessageCircle size={20} />, href: "#" },  
+  { label: "Settings", icon: <Settings size={20} />, href: "#" },  
+];  
+  
+export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {  
+  return (  
+    <aside  
+      className={cn(  
+        "fixed inset-y-0 left-0 z-40 w-64 bg-card shadow transition-transform duration-200",  
+        open ? "translate-x-0" : "-translate-x-full",  
+        "md:translate-x-0"  
+      )}  
+    >  
+      <div className="flex items-center h-16 px-4 border-b border-border text-xl font-bold text-foreground">Logo</div>  
+      <nav className="p-4">  
+        <ul>  
+          {navItems.map((item) => (  
+            <li key={item.label} className="mb-2">  
+              <a  
+                href={item.href}  
+                className="flex items-center p-2 rounded-md hover:bg-muted gap-2 font-medium text-foreground"  
+              >  
+                {item.icon}  
+                {item.label}  
+              </a>  
+            </li>  
+          ))}  
+        </ul>  
+      </nav>  
+      <button onClick={onClose} className="md:hidden absolute top-2 right-2 p-2 text-2xl text-muted-foreground">  
+        ×  
+      </button>  
+    </aside>  
+  );  
+}  --- app/components/chat-ui/ChatInput.tsx ---
+import * as React from "react";  
+import { FiSend, FiPaperclip, FiBox } from "react-icons/fi";  
+  
+interface ModelMeta {  
+  displayName: string;  
+  model: string;  
+  provider: string;  
+}  
+  
+interface ChatInputProps {  
+  input: string;  
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;  
+  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;  
+  isLoading: boolean;  
+  models: ModelMeta[];  
+  selectedModel: string;  
+  onModelChange: (model: string) => void;  
+}  
+  
+// Helper to detect mobile (pointer: coarse or userAgent fallback for SSR)  
+function isProbablyMobile() {  
+  if (typeof window !== "undefined") {  
+    if (window.matchMedia("(pointer: coarse)").matches) return true;  
+    return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|Mobile/i.test(navigator.userAgent);  
+  }  
+  // Fallback: treat as desktop (safe)  
+  return false;  
+}  
+  
+export function ChatInput({  
+  input,  
+  onChange,  
+  onSubmit,  
+  isLoading,  
+  models,  
+  selectedModel,  
+  onModelChange,  
+}: ChatInputProps) {  
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);  
+  
+  // Resize textarea height automatically  
+  React.useEffect(() => {  
+    if (textareaRef.current) {  
+      textareaRef.current.style.height = "auto";  
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 144)}px`;  
+    }  
+  }, [input]);  
+  
+  // Main KeyDown handler  
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {  
+    const isMobile = isProbablyMobile();  
+  
+    // Always allow Shift+Enter or Ctrl+Enter: insert newline  
+    if (e.key === "Enter" && (e.shiftKey || e.ctrlKey)) {  
+      // Allow browser default (newline)  
+      return;  
+    }  
+  
+    // On mobile: never submit on Enter, always newline  
+    if (isMobile) return;  
+  
+    // On desktop/laptop: Enter (no modifier) submits, preventDefault so it doesn't create a newline  
+    if (e.key === "Enter") {  
+      e.preventDefault();  
+      if (!isLoading && input.trim()) {  
+        // This ensures onSubmit is called and form validated  
+        const form = e.currentTarget.form;  
+        if (form) {  
+          form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));  
+        }  
+      }  
+    }  
+  };  
+  
+  // Option style (unchanged)  
+  const getOptionStyleByProvider = (provider: string): React.CSSProperties => {  
+    switch (provider.toLowerCase()) {  
+      case "openai":  
+        return { backgroundColor: "hsl(var(--popover, #f0f9ff))", color: "hsl(var(--popover-foreground, #0284c7))" };  
+      case "anthropic":  
+        return { backgroundColor: "hsl(var(--popover, #f0fdf4))", color: "hsl(var(--popover-foreground, #15803d))" };  
+      case "google":  
+        return { backgroundColor: "hsl(var(--popover, #fffbeb))", color: "hsl(var(--popover-foreground, #b45309))" };  
+      default:  
+        return {  
+          backgroundColor: "hsl(var(--popover, white))",  
+          color: "hsl(var(--popover-foreground, black))",  
+        };  
+    }  
+  };  
+  
+  return (  
+    <form  
+      onSubmit={onSubmit}  
+      className="relative flex flex-col bg-card rounded-xl border border-border shadow-lg p-2 sm:p-3 w-full"  
+    >  
+      <textarea  
+        ref={textareaRef}  
+        value={input}  
+        onChange={onChange}  
+        onKeyDown={handleKeyDown}  
+        placeholder="Ask Anything..."  
+        rows={1}  
+        className="w-full px-3 py-2.5 rounded-lg border-none outline-none focus:ring-0 bg-transparent text-base text-foreground placeholder-muted-foreground resize-none max-h-36 leading-relaxed overflow-y-auto"  
+        style={{ minHeight: "calc(1.625rem + 20px)" }}  
+        disabled={isLoading}  
+      />  
+      <div className="flex items-center justify-between mt-2">  
+        {/* Left controls */}  
+        <div className="flex items-center gap-2">  
+          <select  
+            className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 cursor-pointer"  
+            value={selectedModel}  
+            onChange={e => onModelChange(e.target.value)}  
+            disabled={isLoading}  
+            aria-label="Select AI Model"  
+          >  
+            {models.map((m) => (  
+              <option  
+                key={m.model}  
+                value={m.model}  
+                style={getOptionStyleByProvider(m.provider)}  
+              >  
+                {m.displayName}  
+              </option>  
+            ))}  
+          </select>  
+        </div>  
+        {/* Right controls */}  
+        <div className="flex items-center gap-1 sm:gap-2">  
+          <button  
+            type="button"  
+            disabled  
+            className="text-muted-foreground hover:text-foreground p-1.5 sm:p-2 rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"  
+            title="Attach file (coming soon)"  
+          >  
+            <FiPaperclip size={18} />  
+          </button>  
+          <button  
+            type="button"  
+            disabled  
+            className="text-muted-foreground hover:text-foreground p-1.5 sm:p-2 rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"  
+            title="Box feature (coming soon)"  
+          >  
+            <FiBox size={18} />  
+          </button>  
+          <div className="border-l h-5 mx-1 border-border"></div>  
+          <button  
+            type="submit"  
+            className="rounded-lg p-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"  
+            disabled={isLoading || !input.trim()}  
+            title="Send message"  
+          >  
+            <FiSend size={20} />  
+          </button>  
+        </div>  
+      </div>  
+    </form>  
+  );  
+}  --- app/entry.server.tsx ---
+/**
+ * By default, Remix will handle generating the HTTP Response for you.
+ * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx remix reveal` ✨
+ * For more information, see https://remix.run/file-conventions/entry.server
+ */
+
+import { PassThrough } from "node:stream";
+
+import type { AppLoadContext, EntryContext } from "@remix-run/node";
+import { createReadableStreamFromReadable } from "@remix-run/node";
+import { RemixServer } from "@remix-run/react";
+import { isbot } from "isbot";
+import { renderToPipeableStream } from "react-dom/server";
+
+const ABORT_DELAY = 5_000;
+
+export default function handleRequest(
+  request: Request,
+  responseStatusCode: number,
+  responseHeaders: Headers,
+  remixContext: EntryContext,
+  // This is ignored so we can keep it in the template for visibility.  Feel
+  // free to delete this parameter in your app if you're not using it!
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  loadContext: AppLoadContext
+) {
+  return isbot(request.headers.get("user-agent") || "")
+    ? handleBotRequest(
+        request,
+        responseStatusCode,
+        responseHeaders,
+        remixContext
+      )
+    : handleBrowserRequest(
+        request,
+        responseStatusCode,
+        responseHeaders,
+        remixContext
+      );
+}
+
+function handleBotRequest(
+  request: Request,
+  responseStatusCode: number,
+  responseHeaders: Headers,
+  remixContext: EntryContext
+) {
+  return new Promise((resolve, reject) => {
+    let shellRendered = false;
+    const { pipe, abort } = renderToPipeableStream(
+      <RemixServer
+        context={remixContext}
+        url={request.url}
+        abortDelay={ABORT_DELAY}
+      />,
+      {
+        onAllReady() {
+          shellRendered = true;
+          const body = new PassThrough();
+          const stream = createReadableStreamFromReadable(body);
+
+          responseHeaders.set("Content-Type", "text/html");
+
+          resolve(
+            new Response(stream, {
+              headers: responseHeaders,
+              status: responseStatusCode,
+            })
+          );
+
+          pipe(body);
+        },
+        onShellError(error: unknown) {
+          reject(error);
+        },
+        onError(error: unknown) {
+          responseStatusCode = 500;
+          // Log streaming rendering errors from inside the shell.  Don't log
+          // errors encountered during initial shell rendering since they'll
+          // reject and get logged in handleDocumentRequest.
+          if (shellRendered) {
+            console.error(error);
+          }
+        },
+      }
+    );
+
+    setTimeout(abort, ABORT_DELAY);
+  });
+}
+
+function handleBrowserRequest(
+  request: Request,
+  responseStatusCode: number,
+  responseHeaders: Headers,
+  remixContext: EntryContext
+) {
+  return new Promise((resolve, reject) => {
+    let shellRendered = false;
+    const { pipe, abort } = renderToPipeableStream(
+      <RemixServer
+        context={remixContext}
+        url={request.url}
+        abortDelay={ABORT_DELAY}
+      />,
+      {
+        onShellReady() {
+          shellRendered = true;
+          const body = new PassThrough();
+          const stream = createReadableStreamFromReadable(body);
+
+          responseHeaders.set("Content-Type", "text/html");
+
+          resolve(
+            new Response(stream, {
+              headers: responseHeaders,
+              status: responseStatusCode,
+            })
+          );
+
+          pipe(body);
+        },
+        onShellError(error: unknown) {
+          reject(error);
+        },
+        onError(error: unknown) {
+          responseStatusCode = 500;
+          // Log streaming rendering errors from inside the shell.  Don't log
+          // errors encountered during initial shell rendering since they'll
+          // reject and get logged in handleDocumentRequest.
+          if (shellRendered) {
+            console.error(error);
+          }
+        },
+      }
+    );
+
+    setTimeout(abort, ABORT_DELAY);
+  });
+}

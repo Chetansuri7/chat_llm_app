@@ -8,15 +8,5 @@
     "displayName": "Gemini 2.0 Flash",  
     "model": "gemini-2.0-flash",  
     "provider": "google"  
-  },  
-  {  
-    "displayName": "GPT-3.5 Turbo",  
-    "model": "gpt-3.5-turbo",  
-    "provider": "azure"  
-  },  
-  {  
-    "displayName": "Mistral Large",  
-    "model": "mistral-large-2402",  
-    "provider": "mistral"  
-  }  
+  }
 ]  

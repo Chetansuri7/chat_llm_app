@@ -1,34 +1,30 @@
+// app/components/chat-ui/ChatMessagesOutput.tsx
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-// Ensure "highlight.js/styles/atom-one-dark.css" is imported globally in your app  
 import { MdCheckBoxOutlineBlank, MdCheckBox } from "react-icons/md";
+import { FiCopy, FiCheck } from "react-icons/fi";
 import type { Components } from "react-markdown";
-import 'highlight.js/styles/atom-one-dark.css'  
+import 'highlight.js/styles/atom-one-dark.css';
+import { Riple } from 'react-loading-indicators';
 
-// --- BEGIN TYPE FIXES ---  
 interface CodeProps extends React.HTMLAttributes<HTMLElement> {
   inline?: boolean;
   className?: string;
   children?: React.ReactNode;
   node?: any;
 }
-
 interface ListItemProps extends React.LiHTMLAttributes<HTMLLIElement> {
   checked?: boolean;
   ordered?: boolean;
   children?: React.ReactNode;
 }
-// --- END TYPE FIXES ---  
-
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
 }
-
-// HAST node types (simplified for extractText)  
 interface HastNode {
   type: "text" | "element";
   value?: string;
@@ -36,8 +32,6 @@ interface HastNode {
   tagName?: string;
   properties?: Record<string, unknown>;
 }
-
-// Recursive function to extract text from HAST nodes  
 const extractText = (nodes?: HastNode[]): string => {
   if (!nodes) return "";
   return nodes
@@ -54,24 +48,16 @@ const markdownComponents: Components = {
     <p className="my-3 leading-relaxed text-base" {...props} />
   ),
   code: ({ node, inline, className, children, ...props }: CodeProps) => {
-    // Debug logs to trace inline prop, node, and content
-    // console.log("Code Component - Inline:", inline, "ClassName:", className, "Content:", children);
-    // console.log("Code Component - Node:", node);
-
     const match = /language-(\w+)/.exec(className || "");
     let language = match ? match[1] : undefined;
-    // Normalize common non-specific language tags to undefined  
     if (language === "null" || language === "text" || language === "plaintext") {
       language = undefined;
     }
-
-    // Improved fallback: Check node type and position to determine if it's inline
     const isInlineNode = node?.type === "inlineCode" || node?.position?.start?.column === node?.position?.end?.column;
     const content = children?.toString() || "";
     const isSingleLine = !content.includes("\n");
 
     if (inline !== false && (inline || isInlineNode || isSingleLine)) {
-      // console.log("Rendering as inline code:", content);
       return (
         <code
           className={`bg-muted/50 text-foreground px-1.5 py-0.5 rounded font-mono text-sm ${className || ""}`}
@@ -81,22 +67,17 @@ const markdownComponents: Components = {
         </code>
       );
     }
-
-    // console.log("Rendering as code block:", content);
     const rawCodeContent = node && "children" in node && node.children ? extractText(node.children as HastNode[]) : "";
     const cleanedCodeForCopy = rawCodeContent.trim();
 
     return (
       <div className="relative rounded-lg overflow-hidden shadow-sm my-4 border border-border bg-card/50 dark:bg-zinc-900/50">
-        {/* Unified Code Block Header */}
         <div className="bg-muted/70 dark:bg-zinc-800/70 text-muted-foreground py-1.5 px-4 font-mono text-xs flex items-center justify-between border-b border-border">
-          {/* Language Tag (conditionally rendered) or an empty span as placeholder */}
           {language ? (
             <span className="uppercase tracking-wider">{language}</span>
           ) : (
             <span />
           )}
-          {/* Copy Button (only for code blocks) */}
           <button
             className="bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded px-2 py-0.5 text-xs transition-colors flex items-center gap-1 border border-transparent hover:border-border"
             onClick={() => {
@@ -107,11 +88,9 @@ const markdownComponents: Components = {
             type="button"
             aria-label="Copy code to clipboard"
           >
-            Copy
+            <FiCopy size={14} />
           </button>
         </div>
-
-        {/* Code Content */}
         <pre className="p-4 text-sm font-mono text-foreground overflow-x-auto" style={{ margin: 0, backgroundColor: 'transparent' }}>
           <code className={className} {...props}>
             {children}
@@ -179,54 +158,87 @@ interface ChatMessagesOutputProps {
   messages: Message[];
   isLoading: boolean;
 }
-
 export function ChatMessagesOutput({ messages, isLoading }: ChatMessagesOutputProps) {
+  const [copiedMessageId, setCopiedMessageId] = React.useState<string | null>(null);
+
+  const handleCopy = (id: string, text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedMessageId(id);
+      setTimeout(() => setCopiedMessageId(null), 1800);
+    }).catch(err => {
+      // Optionally handle copy failure
+    });
+  };
+
   return (
     <div className="flex flex-col space-y-5 w-full">
       {messages.map((msg, index) => {
-        // Debug log for incoming message content
-        // console.log("Message Content:", msg.content);
-
         const isUser = msg.role === "user";
         const isAssistant = msg.role === "assistant";
         const isStreamingAssistant = isAssistant && isLoading && index === messages.length - 1;
+        const isAssistantLoadingPlaceholder = isStreamingAssistant && msg.content === "";
+
+        const alignParent = isUser ? "justify-end" : "justify-start";
+        const alignCopy = isUser ? "flex-row-reverse" : "flex-row";
 
         return (
           <div
             key={msg.id}
-            className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}
+            className={`flex flex-col w-full ${alignParent}`}
           >
+            {/* Chat Card: Updated classes for user and assistant */}
             <div
               className={`
-                py-3 px-4 md:py-4 md:px-5 rounded-2xl shadow-sm break-words
+                rounded-2xl shadow-sm break-words transition-all
                 ${isUser
-                  ? "bg-primary/20 text-primary border border-primary/20 rounded-br-lg py-2 px-3 md:py-2.5 md:px-3.5" 
-                  : "bg-card text-foreground border border-border rounded-bl-lg"
+                  ? "bg-primary/20 text-primary border border-primary/20 rounded-br-lg p-2 md:p-2.5 w-fit max-w-[80%] self-end" // User: specific padding, w-fit, max-width 80%, self-end
+                  : "bg-card text-foreground border border-border rounded-bl-lg py-3 px-4 md:py-4 md:px-5 w-auto max-w-[90vw] sm:max-w-[480px] self-start" // Assistant: original padding, original width classes, self-start
                 }
-                transition-all
               `}
               style={{
-                width: "auto",
-                minWidth: isAssistant ? "80px" : undefined,
-                maxWidth: isAssistant ? "100%" : "calc(100% - 0.5rem)",
-                minHeight: isAssistant ? "50px" : undefined,
+                // For Assistant, to ensure it tries to take 100% width up to its caps if content is wide.
+                // For User, max-width is handled by Tailwind class.
+                maxWidth: isUser ? undefined : "100%",
+                minHeight: isAssistantLoadingPlaceholder ? "20px" : undefined,
               }}
             >
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeHighlight]}
-                components={markdownComponents}
-                skipHtml={false}
-              >
-                {msg.content}
-              </ReactMarkdown>
+              {isAssistantLoadingPlaceholder ? (
+                <div className="flex items-center justify-start h-full w-full">                  <Riple color="hsl(var(--foreground))" size="small" text="" textColor="" />
+                </div>
+              ) : (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeHighlight]}
+                  components={markdownComponents}
+                  skipHtml={false}
+                >
+                  {msg.content}
+                </ReactMarkdown>
+              )}
               {isStreamingAssistant && msg.content.length > 0 && (
                 <span className="inline-block ml-1 animate-pulse">▍</span>
               )}
             </div>
+            {/* Copy Button Row (always shown) */}
+            <div className={`flex ${alignCopy} w-full mt-[3px]`}>
+              <button
+                onClick={() => handleCopy(msg.id, msg.content)}
+                className={`
+                  p-1.5 rounded-md flex items-center text-muted-foreground hover:text-foreground transition-colors duration-150 bg-transparent border-none
+                  focus:outline-none focus-visible:ring-1
+                `}
+                aria-label={copiedMessageId === msg.id ? "Copied to clipboard" : "Copy message to clipboard"}
+                title={copiedMessageId === msg.id ? "Copied!" : "Copy"}
+                style={{ marginTop: '2px', marginLeft: isAssistant ? '2px' : '0', marginRight: isUser ? '2px' : '0' }}
+                disabled={isAssistantLoadingPlaceholder}
+              >
+                {copiedMessageId === msg.id ? <FiCheck size={16} className="text-green-500" /> : <FiCopy size={16} />}
+              </button>
+            </div>
           </div>
         );
       })}
+
       {isLoading &&
         messages.length > 0 &&
         messages[messages.length - 1]?.role === "user" && (
@@ -235,9 +247,6 @@ export function ChatMessagesOutput({ messages, isLoading }: ChatMessagesOutputPr
               className="py-3 px-4 md:py-4 md:px-5 rounded-2xl shadow-sm break-words bg-card text-foreground border border-border rounded-bl-lg flex items-center space-x-2"
               style={{
                 width: "auto",
-                minWidth: "80px",
-                maxWidth: "100%",
-                minHeight: "50px",
               }}
             >
               <span className="animate-pulse h-2 w-2 rounded-full bg-muted-foreground"></span>
