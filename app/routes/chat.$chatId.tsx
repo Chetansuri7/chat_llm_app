@@ -5,6 +5,7 @@ import { useParams, useLocation, useLoaderData, useNavigate, useNavigation } fro
 import { json, LoaderFunctionArgs } from "@remix-run/node";  
 import { ChatBox } from "~/components/chat-ui/ChatBox";  
 import type { Message } from "~/components/chat-ui/ChatMessagesOutput";  
+import { requireUser } from "~/auth.server"; // Import requireUser
 // import { toast } from "sonner"; // Example: If you want to use toast for errors
 
 interface LoaderData {  
@@ -14,6 +15,8 @@ interface LoaderData {
 }  
   
 export async function loader({ params, request }: LoaderFunctionArgs): Promise<ReturnType<typeof json<LoaderData>>> {  
+  await requireUser(request); // Add authentication check here
+
   const chatId = params.chatId;  
   
   if (!chatId) {  
@@ -39,6 +42,14 @@ export async function loader({ params, request }: LoaderFunctionArgs): Promise<R
     if (!response.ok) {  
       const errorText = await response.text().catch(() => `HTTP error ${response.status}`);  
       console.error(`ChatIdPage Loader: Failed to fetch chat history for ${chatId}: ${response.status} ${response.statusText}. Body: ${errorText.substring(0, 500)}`);
+      // If auth is handled by requireUser, a 401/403 from API might still occur if API has its own auth layer not synced,
+      // or if user session is valid for Remix but not for the API (e.g. different token).
+      // requireUser will redirect to login if Remix session is invalid.
+      if (response.status === 401 || response.status === 403) {
+        // This case should ideally be handled by requireUser redirecting, 
+        // but if API returns 401/403 for an *authenticated* Remix user, it's an API auth issue.
+        return json({ messages: [], error: `Access to chat history denied: ${response.statusText || response.status}`, chatId });
+      }
       return json({ messages: [], error: `Failed to load history: ${response.statusText || response.status}`, chatId });  
     }  
   
@@ -77,13 +88,10 @@ export default function ChatIdPage() {
   const navigation = useNavigation();  
   
   const chatIdFromRoute = routeParams.chatId!;
-  // Use loaderData.chatId if available (it's the source of truth from loader), otherwise fallback to route param.
-  // This is important if the route param could somehow mismatch the data loaded (e.g., during fast navigations).
   const derivedChatId = loaderData.chatId && loaderData.chatId !== "" ? loaderData.chatId : chatIdFromRoute;
 
   const [messages, setMessagesInternal] = React.useState<Message[]>(() => {
     const navMessages = (location.state as { initialMessages?: Message[] })?.initialMessages;
-    // Prioritize navMessages, then loaderData.messages, then empty array.
     const initial = navMessages && navMessages.length > 0 ? navMessages : (loaderData.messages || []);
     console.log(`ChatIdPage RENDER (useState init): derivedChatId: ${derivedChatId}. Initializing messages. FromNav: ${!!navMessages}, FromLoader: ${!!loaderData.messages}. Count: ${initial.length}`);
     return initial;
@@ -91,8 +99,6 @@ export default function ChatIdPage() {
 
   const [historyLoadError, setHistoryLoadError] = React.useState<string | null>(loaderData.error);
   
-  // This ref helps manage the initial application of navState messages,
-  // ensuring they are not immediately overwritten by loaderData if navState is fresher.
   const navStateAppliedRef = React.useRef(!!((location.state as { initialMessages?: Message[] })?.initialMessages));
 
 
@@ -118,25 +124,22 @@ export default function ChatIdPage() {
   }, [messages, derivedChatId]);
 
 
-  // Effect to clear initialMessages from navigation state after they've been applied
   React.useEffect(() => {
     const navState = location.state as { initialMessages?: Message[] };
     if (navState?.initialMessages && navStateAppliedRef.current) {
       console.log(`ChatIdPage: Clearing initialMessages from navigation state for ${derivedChatId}.`);
       const { initialMessages: _removed, ...restOfState } = navState;
       navigate(
-        location.pathname + location.search, // Use current path and search
+        location.pathname + location.search, 
         {
           replace: true,
-          state: Object.keys(restOfState).length > 0 ? restOfState : null, // Ensure state is null if empty
+          state: Object.keys(restOfState).length > 0 ? restOfState : null, 
         }
       );
-      // Once cleared, mark that navState is no longer the primary source that needs protection.
       navStateAppliedRef.current = false; 
     }
   }, [location.state, location.pathname, location.search, navigate, derivedChatId]);
 
-  // Effect to synchronize with loaderData (history)
   React.useEffect(() => {
     console.log(
       `ChatIdPage: loaderData EFFECT. derivedChatId: ${derivedChatId}, loaderData.chatId: ${loaderData.chatId}, ` +
@@ -199,7 +202,7 @@ export default function ChatIdPage() {
       }
     }
     if (loaderData.messages.length === 0 && messages.length > 0) {
-        isLoaderPrefixOfCurrent = true; // Empty loaderData is a prefix of non-empty current messages
+        isLoaderPrefixOfCurrent = true;
     }
 
     if (isLoaderPrefixOfCurrent) {
@@ -209,7 +212,7 @@ export default function ChatIdPage() {
       setMessagesInternal(loaderData.messages);
     }
 
-  }, [loaderData, derivedChatId, location.state, historyLoadError]); // `messages` is intentionally NOT in this dependency array.
+  }, [loaderData, derivedChatId, location.state, historyLoadError]);
 
 
   const isRouteLoading = navigation.state === "loading" && navigation.location?.pathname === location.pathname;
@@ -243,20 +246,14 @@ export default function ChatIdPage() {
         </div>  
       )}  
   
-      {/* Render ChatBox if we have a chatId AND (
-            messages exist OR 
-            (we are not explicitly loading the page AND there's no history error - for "Hello" prompt)
-          )
-      */}
       {derivedChatId && (messages.length > 0 || (!showExplicitPageLoadingMessage && !historyLoadError)) && (
         <ChatBox  
-          key={derivedChatId} // Ensures ChatBox remounts if chatId actually changes
+          key={derivedChatId} 
           chatId={derivedChatId}  
           messages={messages}  
           onMessagesChange={handleMessagesChange} 
           onNewChatIdGenerated={(newChatId, initialMessagesFromChatBox) => {  
             console.log(`ChatIdPage: Navigating to new chat ${newChatId} from ${derivedChatId} with initial messages count: ${initialMessagesFromChatBox.length}`);
-            // The new ChatIdPage instance will initialize its own navStateAppliedRef.current based on its location.state.
             navigate(`/chat/${newChatId}`, {  
               replace: true,  
               state: { initialMessages: initialMessagesFromChatBox },  

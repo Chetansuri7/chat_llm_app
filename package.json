@@ -58,6 +58,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "env": "^0.0.2",
+    "focus-trap-react": "^11.0.3",
     "framer-motion": "^12.7.3",
     "highlight.js": "^11.11.1",
     "input-otp": "^1.4.2",

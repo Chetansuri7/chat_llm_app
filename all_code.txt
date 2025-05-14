@@ -52,117 +52,137 @@ export function useIsMobile() {
   // This provides a consistent boolean return type.
   return isMobile === undefined ? false : isMobile;
 }--- app/root.tsx ---
-// app/root.tsx
-import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation } from "@remix-run/react";
-import type { LinksFunction } from "@remix-run/node";
-import "./tailwind.css";
-import { Progress } from "~/components/ui/progress"; // Import Progress
-import * as React from "react";
-import { Toaster } from 'sonner'; // Import Toaster
-
-export const links: LinksFunction = () => [
-  { rel: "preconnect", href: "https://fonts.googleapis.com" },
-  { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-  {
-    rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
-  },
-];
-
-// Script for theme-color meta tag, similar to Vercel's example
-const THEME_COLOR_LIGHT = 'hsl(0 0% 100%)'; // Example light theme color
-const THEME_COLOR_DARK = 'hsl(240 10% 3.9%)'; // Example dark theme color (adjust to your dark theme's bg)
-const THEME_COLOR_SCRIPT = `
-(function() {
-  var html = document.documentElement;
-  var meta = document.querySelector('meta[name="theme-color"]');
-  if (!meta) {
-    meta = document.createElement('meta');
-    meta.setAttribute('name', 'theme-color');
-    document.head.appendChild(meta);
-  }
-  function updateThemeColor() {
-    // Assuming you use a 'dark' class on <html> for dark mode
-    var isDark = html.classList.contains('dark');
-    meta.setAttribute('content', isDark ? '${THEME_COLOR_DARK}' : '${THEME_COLOR_LIGHT}');
-  }
-  // Initial call
-  updateThemeColor();
-  // Observe class changes on <html> for dark mode toggle
-  var observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-      if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-        updateThemeColor();
-      }
-    });
-  });
-  observer.observe(html, { attributes: true, attributeFilter: ['class'] });
-})();
-`;
-
-
-export function Layout({ children }: { children: React.ReactNode }) {
-  const navigation = useNavigation();
-  const [progressValue, setProgressValue] = React.useState(0);
-  const [showProgress, setShowProgress] = React.useState(false);
-
-  React.useEffect(() => {
-    let timer: NodeJS.Timeout | undefined;
-    if (navigation.state === "loading" || navigation.state === "submitting") {
-      setShowProgress(true);
-      setProgressValue(0); // Reset
-      let currentProgress = 10;
-      setProgressValue(currentProgress);
-      timer = setInterval(() => {
-        currentProgress += 15;
-        if (currentProgress < 90) {
-          setProgressValue(currentProgress);
-        } else {
-          // Stall progress
-        }
-      }, 200);
-    } else if (navigation.state === "idle") {
-      setProgressValue(100);
-      timer = setTimeout(() => setShowProgress(false), 300);
-    }
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [navigation.state]);
-
-  return (
-    <html lang="en" className="h-dvh min-h-dvh" suppressHydrationWarning>
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" /> {/* Added maximum-scale=1 */}
-        <Meta />
-        <title>Krivi AI - Ignite & Flow</title>
-        <Links />
-        <script dangerouslySetInnerHTML={{ __html: THEME_COLOR_SCRIPT }} />
-      </head>
-      <body className="h-dvh min-h-dvh bg-background text-foreground antialiased">
-        {showProgress && (
-          <div className="fixed top-0 left-0 right-0 z-[9999] h-1"> {/* Increased z-index */}
-            <Progress value={progressValue} className="w-full h-full rounded-none bg-primary/30" />
-          </div>
-        )}
-        {children}
-        <ScrollRestoration />
-        <Scripts />
-        <Toaster richColors closeButton theme="system" position="top-center" /> {/* Added Toaster */}
-      </body>
-    </html>
-  );
-}
-export default function App() {
-  return <Outlet />;
-}--- app/routes/login.tsx ---
+// app/root.tsx  
+import { Links, Meta, Outlet, Scripts, ScrollRestoration, useNavigation } from "@remix-run/react";  
+import type { LinksFunction } from "@remix-run/node";  
+import "./tailwind.css";  
+import { Progress } from "~/components/ui/progress";  
+import * as React from "react";  
+import { Toaster } from 'sonner';  
+import { PageLayout } from "~/components/chat-ui/PageLayout";  
+  
+export const links: LinksFunction = () => [  
+  { rel: "preconnect", href: "https://fonts.googleapis.com" },  
+  { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },  
+  {  
+    rel: "stylesheet",  
+    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",  
+  },  
+];  
+  
+// Script for theme-color meta tag  
+const THEME_COLOR_LIGHT = 'hsl(0 0% 100%)'; // Example light  
+const THEME_COLOR_DARK = 'hsl(240 10% 3.9%)'; // Example dark (match your system)  
+const THEME_COLOR_SCRIPT = `(function() {  
+  var html = document.documentElement;  
+  var meta = document.querySelector('meta[name="theme-color"]');  
+  if (!meta) {  
+    meta = document.createElement('meta');  
+    meta.setAttribute('name', 'theme-color');  
+    document.head.appendChild(meta);  
+  }  
+  function updateThemeColor() {  
+    var isDark = html.classList.contains('dark');  
+    meta.setAttribute('content', isDark ? '${THEME_COLOR_DARK}' : '${THEME_COLOR_LIGHT}');  
+  }  
+  updateThemeColor();  
+  var observer = new MutationObserver(function(mutations) {  
+    mutations.forEach(function(mutation) {  
+      if (mutation.type === 'attributes' && mutation.attributeName === 'class') {  
+        updateThemeColor();  
+      }  
+    });  
+  });  
+  observer.observe(html, { attributes: true, attributeFilter: ['class'] });  
+})();`;  
+  
+export function Layout({ children }: { children: React.ReactNode }) {  
+  const navigation = useNavigation();  
+  const [progressValue, setProgressValue] = React.useState(0);  
+  const [showProgress, setShowProgress] = React.useState(false);  
+  
+  React.useEffect(() => {  
+    let timer: NodeJS.Timeout | undefined;  
+    if (navigation.state === "loading" || navigation.state === "submitting") {  
+      setShowProgress(true);  
+      setProgressValue(0);  
+      let currentProgress = 10;  
+      setProgressValue(currentProgress);  
+      timer = setInterval(() => {  
+        currentProgress += 15;  
+        if (currentProgress < 90) {  
+          setProgressValue(currentProgress);  
+        } else {  
+          // Stall progress  
+        }  
+      }, 200);  
+    } else if (navigation.state === "idle") {  
+      setProgressValue(100);  
+      timer = setTimeout(() => setShowProgress(false), 300);  
+    }  
+    return () => {  
+      if (timer) clearTimeout(timer);  
+    };  
+  }, [navigation.state]);  
+  
+  return (  
+    <html lang="en" className="h-dvh min-h-dvh" suppressHydrationWarning>  
+      <head>  
+        <meta charSet="utf-8" />  
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />  
+        <Meta />  
+        <title>Krivi AI - Ignite & Flow</title>  
+        <Links />  
+        <script dangerouslySetInnerHTML={{ __html: THEME_COLOR_SCRIPT }} />  
+      </head>  
+      <body className="h-dvh min-h-dvh bg-background text-foreground antialiased">  
+        {showProgress && (  
+          <div className="fixed top-0 left-0 right-0 z-[9999] h-1">  
+            <Progress value={progressValue} className="w-full h-full rounded-none bg-primary/30" />  
+          </div>  
+        )}  
+        {/* SIDEBAR LAYOUT WRAP */}  
+        <PageLayout>  
+          {children}  
+        </PageLayout>  
+        <ScrollRestoration />  
+        <Scripts />  
+        <Toaster richColors closeButton theme="system" position="top-center" />  
+      </body>  
+    </html>  
+  );  
+}  
+  
+export default function App() {  
+  return <Outlet />;  
+}  --- app/routes/login.tsx ---
+// app/routes/login.tsx
 import { useNavigate } from "@remix-run/react";
 import { FaGoogle } from "react-icons/fa";
-import { Button } from "~/components/ui/button"; // Assuming this is shadcn/ui Button or similar
+import { Button } from "~/components/ui/button";
+import type { LoaderFunctionArgs } from "@remix-run/node";
+import { preventAuthenticatedUser } from "~/auth.server";
+import { json } from "@remix-run/node";
+// import { toast } from "sonner"; // If you want to show toast for logoutError
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  await preventAuthenticatedUser(request, "/"); // Redirect to home if already logged in
+  // const url = new URL(request.url);
+  // if (url.searchParams.get("logoutError")) {
+  //  return json({ logoutError: "Logout failed. Please try again or clear cookies." });
+  // }
+  return json({}); // Must return a response
+}
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  // const loaderData = useLoaderData<typeof loader>();
+
+  // React.useEffect(() => {
+  //   if (loaderData.logoutError) {
+  //     toast.error(loaderData.logoutError);
+  //   }
+  // }, [loaderData]);
 
   const handleGoogleLogin = async () => {
     try {
@@ -170,42 +190,31 @@ export default function LoginPage() {
       window.location.href = googleAuthURL;
     } catch (error) {
       console.error("Error during Google authentication:", error);
-      // Consider showing a user-facing error message here
+      // toast.error("Google login failed. Please try again.");
     }
   };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background text-foreground px-4 py-8 sm:py-12">
       <div className="max-w-md w-full bg-card text-card-foreground p-8 sm:p-10 rounded-xl shadow-2xl border border-border/70">
-        {/* App Branding */}
         <div className="text-center mb-8">
-          {/* Optional: You can add an SVG logo here if you have one */}
-          {/* <img src="/path-to-your-logo.svg" alt="Krivi AI Logo" className="w-16 h-16 mx-auto mb-3" /> */}
           <h1 className="text-4xl font-bold text-primary">
             Krivi AI
           </h1>
         </div>
-
-        {/* Welcome Text */}
         <h2 className="text-2xl sm:text-3xl font-semibold mb-3 text-center text-card-foreground">
           Welcome!
         </h2>
         <p className="text-muted-foreground mb-8 text-sm sm:text-base text-center">
           Sign in below, and we'll increase your message limits 😉
         </p>
-
-        {/* Google Login Button */}
         <Button
           onClick={handleGoogleLogin}
           className="flex items-center justify-center w-full py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary-foreground hover:text-primary transition-all duration-200 ease-in-out shadow-md hover:shadow-lg border border-border transform hover:scale-[1.02]"
-          // The original had shadow-lg, I've kept it as hover:shadow-lg and shadow-md for normal state.
-          // Added transform hover:scale-[1.02] for a subtle zoom, using transition-all.
         >
-          <FaGoogle className="mr-3 text-xl" /> {/* Slightly larger icon */}
+          <FaGoogle className="mr-3 text-xl" />
           Sign in with Google
         </Button>
-
-        {/* Terms */}
         <p className="mt-10 text-xs text-center text-muted-foreground">
           By continuing, you agree to our{" "}
           <a
@@ -213,8 +222,6 @@ export default function LoginPage() {
             target="_blank"
             rel="noopener noreferrer"
             className="font-medium text-accent-foreground underline hover:text-accent-foreground/80 focus:outline-none focus:ring-1 focus:ring-ring rounded-sm"
-            // Using text-accent-foreground for better contrast
-            // hover:text-accent-foreground/80 for a slightly dimmed hover
           >
             Terms of Service
           </a>{" "}
@@ -234,30 +241,36 @@ export default function LoginPage() {
 }--- app/routes/_index.tsx ---
 // app/routes/_index.tsx
 import * as React from "react";
-import { useNavigate } from "@remix-run/react";
+import { useNavigate, useLoaderData } from "@remix-run/react";
 import { ChatBox } from "~/components/chat-ui/ChatBox";
 import type { Message } from "~/components/chat-ui/ChatMessagesOutput";
+import type { LoaderFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
+import { requireUser } from "~/auth.server";
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  const { user } = await requireUser(request); // Throws redirect if not authenticated
+  return json({ user }); // User data available if needed by the component
+}
 
 export default function IndexPage() {
   const navigate = useNavigate();
-  // messages state for ChatBox. It will contain the user's first message and AI's first response
-  // before navigating away.
+  // const { user } = useLoaderData<typeof loader>(); // User data if needed
+
   const [messages, setMessages] = React.useState<Message[]>([]);
 
-  // This handler receives the newChatId and the fully formed initialMessages
-  // (user's first query + AI's first response) from ChatBox.
   function handleNewChatId(newChatId: string, initialMessages: Message[]) {
     navigate(`/chat/${newChatId}`, {
-      replace: true, // Replace current URL (/), so back button doesn't go to empty index page
-      state: { initialMessages: initialMessages } // Pass the user's first message and AI's first response
+      replace: true,
+      state: { initialMessages: initialMessages },
     });
   }
 
   return (
     <ChatBox
-      chatId={undefined} // No chatId for a new chat on the index page
+      chatId={undefined}
       messages={messages}
-      onMessagesChange={setMessages} // ChatBox will update this with user's first message and AI's placeholder/response
+      onMessagesChange={setMessages}
       onNewChatIdGenerated={handleNewChatId}
     />
   );
@@ -286,7 +299,7 @@ export async function loader({ params, request }: LoaderFunctionArgs): Promise<R
   }  
   
   const historyApiUrl = `https://api-chat.kwikon.club/api/chat/${chatId}/history?limit=50`;  
-  console.info("ChatIdPage Loader: Fetching history for chat", chatId, "from", historyApiUrl);  
+  console.info(`ChatIdPage Loader: Fetching history for chat ${chatId} from ${historyApiUrl}`);
   
   try {  
     const cookieHeader = request.headers.get("Cookie");  
@@ -302,7 +315,7 @@ export async function loader({ params, request }: LoaderFunctionArgs): Promise<R
 
     if (!response.ok) {  
       const errorText = await response.text().catch(() => `HTTP error ${response.status}`);  
-      console.error("ChatIdPage Loader: Failed to fetch chat history for", chatId, ":", response.status, response.statusText, ". Body:", errorText.substring(0, 500));  
+      console.error(`ChatIdPage Loader: Failed to fetch chat history for ${chatId}: ${response.status} ${response.statusText}. Body: ${errorText.substring(0, 500)}`);
       return json({ messages: [], error: `Failed to load history: ${response.statusText || response.status}`, chatId });  
     }  
   
@@ -316,7 +329,7 @@ export async function loader({ params, request }: LoaderFunctionArgs): Promise<R
     } else if (historyData && Array.isArray(historyData.chatHistory)) {  
       fetchedMessages = historyData.chatHistory;  
     } else {  
-      console.warn("ChatIdPage Loader: Unexpected history data format for chat", chatId, ":", JSON.stringify(historyData).substring(0, 500));  
+      console.warn(`ChatIdPage Loader: Unexpected history data format for chat ${chatId}: ${JSON.stringify(historyData).substring(0, 500)}`);
     }  
   
     fetchedMessages = fetchedMessages.map((m, index) => ({  
@@ -325,10 +338,10 @@ export async function loader({ params, request }: LoaderFunctionArgs): Promise<R
       content: m.content,  
     }));  
   
-    console.info("ChatIdPage Loader: Successfully fetched", fetchedMessages.length, "messages for chat", chatId);  
+    console.info(`ChatIdPage Loader: Successfully fetched ${fetchedMessages.length} messages for chat ${chatId}`);
     return json({ messages: fetchedMessages, error: null, chatId });  
   } catch (error: any) {  
-    console.error("ChatIdPage Loader: Error fetching chat history for chat", chatId, ":", error.message, error);  
+    console.error(`ChatIdPage Loader: Error fetching chat history for chat ${chatId}: ${error.message}`, error);
     return json({ messages: [], error: error.message || "Could not connect to history service.", chatId });  
   }  
 }  
@@ -341,12 +354,15 @@ export default function ChatIdPage() {
   const navigation = useNavigation();  
   
   const chatIdFromRoute = routeParams.chatId!;
-  const derivedChatId = loaderData.chatId || chatIdFromRoute; 
+  // Use loaderData.chatId if available (it's the source of truth from loader), otherwise fallback to route param.
+  // This is important if the route param could somehow mismatch the data loaded (e.g., during fast navigations).
+  const derivedChatId = loaderData.chatId && loaderData.chatId !== "" ? loaderData.chatId : chatIdFromRoute;
 
   const [messages, setMessagesInternal] = React.useState<Message[]>(() => {
     const navMessages = (location.state as { initialMessages?: Message[] })?.initialMessages;
+    // Prioritize navMessages, then loaderData.messages, then empty array.
     const initial = navMessages && navMessages.length > 0 ? navMessages : (loaderData.messages || []);
-    console.log(`ChatIdPage RENDER (useState init): chatId: ${derivedChatId}. Initializing messages. FromNav: ${!!navMessages}, FromLoader: ${!!loaderData.messages}. Count: ${initial.length}`);
+    console.log(`ChatIdPage RENDER (useState init): derivedChatId: ${derivedChatId}. Initializing messages. FromNav: ${!!navMessages}, FromLoader: ${!!loaderData.messages}. Count: ${initial.length}`);
     return initial;
   });
 
@@ -375,20 +391,21 @@ export default function ChatIdPage() {
   }, [derivedChatId]); 
 
   React.useEffect(() => {
-    console.log(`ChatIdPage: messages state changed (useEffect). ChatId: ${derivedChatId}. New count: ${messages.length}. Last message: ${messages[messages.length-1]?.content.slice(0,30) || 'N/A'}`);
+    console.log(`ChatIdPage: messages state changed (useEffect for logging). ChatId: ${derivedChatId}. New count: ${messages.length}. Last message: ${messages[messages.length-1]?.content.slice(0,30) || 'N/A'}`);
   }, [messages, derivedChatId]);
 
 
+  // Effect to clear initialMessages from navigation state after they've been applied
   React.useEffect(() => {
     const navState = location.state as { initialMessages?: Message[] };
     if (navState?.initialMessages && navStateAppliedRef.current) {
-      console.log(`ChatIdPage: Clearing initialMessages from navigation state. ChatId: ${derivedChatId}`);
+      console.log(`ChatIdPage: Clearing initialMessages from navigation state for ${derivedChatId}.`);
       const { initialMessages: _removed, ...restOfState } = navState;
       navigate(
-        location.pathname + location.search,
+        location.pathname + location.search, // Use current path and search
         {
           replace: true,
-          state: Object.keys(restOfState).length > 0 ? restOfState : null,
+          state: Object.keys(restOfState).length > 0 ? restOfState : null, // Ensure state is null if empty
         }
       );
       // Once cleared, mark that navState is no longer the primary source that needs protection.
@@ -396,47 +413,93 @@ export default function ChatIdPage() {
     }
   }, [location.state, location.pathname, location.search, navigate, derivedChatId]);
 
+  // Effect to synchronize with loaderData (history)
   React.useEffect(() => {
-    console.log(`ChatIdPage: loaderData effect. ChatId: ${derivedChatId}. LoaderData error: ${loaderData.error}, messages: ${loaderData.messages?.length}`);
+    console.log(
+      `ChatIdPage: loaderData EFFECT. derivedChatId: ${derivedChatId}, loaderData.chatId: ${loaderData.chatId}, ` +
+      `loaderData.error: ${loaderData.error}, loaderData.messages.length: ${loaderData.messages?.length || 0}, ` +
+      `current messages.length: ${messages.length}, navStateAppliedRef: ${navStateAppliedRef.current}, ` +
+      `location.state.initialMessages: ${!!(location.state as { initialMessages?: Message[] })?.initialMessages}, ` +
+      `current historyLoadError: ${historyLoadError}`
+    );
+
     if (loaderData.error) {
       if (historyLoadError !== loaderData.error) {
         setHistoryLoadError(loaderData.error);
-        // toast.error(`Error loading history: ${loaderData.error}`); // Example usage of toast
-        console.log(`ChatIdPage: History load error set: ${loaderData.error}. ChatId: ${derivedChatId}`);
+        console.log(`ChatIdPage: History load error SET: ${loaderData.error}. ChatId: ${derivedChatId}`);
       }
-    } else if (loaderData.messages) {
-      // Only update from loaderData if it represents a genuinely different state,
-      // and we are not in a state where fresh navMessages just got applied and not yet cleared.
-      if (navStateAppliedRef.current && (location.state as { initialMessages?: Message[] })?.initialMessages) {
-          console.log(`ChatIdPage: loaderData received, but navState messages are still active and preferred. ChatId: ${derivedChatId}. Deferring loaderData application.`);
-      } else {
-        // Compare content, not IDs, as IDs can be generated differently
-        const currentMessagesContent = JSON.stringify(messages.map(m => ({role: m.role, content: m.content})));
-        const loaderMessagesContent = JSON.stringify(loaderData.messages.map(m => ({role: m.role, content: m.content})));
+      return; 
+    }
 
-        if (currentMessagesContent !== loaderMessagesContent) {
-            console.log(`ChatIdPage: Updating messages from new loaderData. ChatId: ${derivedChatId}. Loader count: ${loaderData.messages.length}, Current count: ${messages.length}`);
-            setMessagesInternal(loaderData.messages);
-        } else {
-            console.log(`ChatIdPage: loaderData messages are same as current. No update needed. ChatId: ${derivedChatId}`);
+    if (historyLoadError && !loaderData.error) {
+      setHistoryLoadError(null);
+      console.log(`ChatIdPage: History load error CLEARED. ChatId: ${derivedChatId}`);
+    }
+
+    if (loaderData.chatId !== derivedChatId) {
+      console.log(`ChatIdPage: loaderData is for a different chatId (${loaderData.chatId} vs ${derivedChatId}). Skipping messages update.`);
+      return;
+    }
+    
+    if (!loaderData.messages) {
+        console.log(`ChatIdPage: loaderData.messages is null/undefined for ${derivedChatId} even without error. Skipping messages update.`);
+        return;
+    }
+
+    if (navStateAppliedRef.current && (location.state as { initialMessages?: Message[] })?.initialMessages) {
+      console.log(`ChatIdPage: navState initialMessages are active for ${derivedChatId}. Deferring loaderData application.`);
+      return;
+    }
+
+    if (messages.length === 0 && loaderData.messages.length > 0) {
+      console.log(`ChatIdPage: Initializing messages from loaderData for ${derivedChatId}. Loader count: ${loaderData.messages.length}`);
+      setMessagesInternal(loaderData.messages);
+      return;
+    }
+
+    const currentMessagesContent = JSON.stringify(messages.map(m => ({ role: m.role, content: m.content })));
+    const loaderMessagesContent = JSON.stringify(loaderData.messages.map(m => ({ role: m.role, content: m.content })));
+
+    if (currentMessagesContent === loaderMessagesContent) {
+      console.log(`ChatIdPage: loaderData messages are identical to current for ${derivedChatId}. No update needed.`);
+      return;
+    }
+
+    let isLoaderPrefixOfCurrent = false;
+    if (loaderData.messages.length <= messages.length) {
+      isLoaderPrefixOfCurrent = true; 
+      for (let i = 0; i < loaderData.messages.length; i++) {
+        if (messages[i].role !== loaderData.messages[i].role || messages[i].content !== loaderData.messages[i].content) {
+          isLoaderPrefixOfCurrent = false;
+          break;
         }
       }
-      if (historyLoadError !== null) {
-        setHistoryLoadError(null);
-        console.log(`ChatIdPage: History load error cleared. ChatId: ${derivedChatId}`);
-      }
     }
-  }, [loaderData, derivedChatId, messages, location.state, historyLoadError]); // Ensure all relevant dependencies are included
+    if (loaderData.messages.length === 0 && messages.length > 0) {
+        isLoaderPrefixOfCurrent = true; // Empty loaderData is a prefix of non-empty current messages
+    }
+
+    if (isLoaderPrefixOfCurrent) {
+      console.log(`ChatIdPage: loaderData for ${derivedChatId} is a prefix of current messages (or empty). Current client state is preferred. Loader: ${loaderData.messages.length}, Current: ${messages.length}.`);
+    } else {
+      console.log(`ChatIdPage: Updating messages from loaderData (genuinely different or newer history) for ${derivedChatId}. Loader: ${loaderData.messages.length}, Current: ${messages.length}.`);
+      setMessagesInternal(loaderData.messages);
+    }
+
+  }, [loaderData, derivedChatId, location.state, historyLoadError]); // `messages` is intentionally NOT in this dependency array.
 
 
   const isRouteLoading = navigation.state === "loading" && navigation.location?.pathname === location.pathname;
-  // Show loading if route is loading, there are no messages yet, and no error.
-  // OR if messages are empty, navStateAppliedRef is true (meaning we are expecting initialMessages from nav) but they haven't arrived.
   const showExplicitPageLoadingMessage = 
     (isRouteLoading && messages.length === 0 && !historyLoadError) ||
     (messages.length === 0 && !historyLoadError && navStateAppliedRef.current && !!(location.state as { initialMessages?: Message[] })?.initialMessages);
   
-  console.log(`ChatIdPage RENDER: ChatId: ${derivedChatId}, messages count: ${messages.length}, showExplicitPageLoading: ${showExplicitPageLoadingMessage}, historyLoadError: ${historyLoadError}, navStateAppliedRef: ${navStateAppliedRef.current}`);
+  console.log(
+    `ChatIdPage RENDER: derivedChatId: ${derivedChatId}, messages count: ${messages.length}, ` +
+    `showExplicitPageLoading: ${showExplicitPageLoadingMessage}, historyLoadError: ${historyLoadError}, ` +
+    `navStateAppliedRef: ${navStateAppliedRef.current}, loaderData messages count: ${loaderData.messages?.length}, ` +
+    `loaderData.chatId: ${loaderData.chatId}, loaderData.error: ${loaderData.error}`
+  );
 
   return (  
     <>  
@@ -457,16 +520,20 @@ export default function ChatIdPage() {
         </div>  
       )}  
   
-      {(!showExplicitPageLoadingMessage || (messages.length > 0 && historyLoadError)) && derivedChatId && ( // Show ChatBox even if there's a history error but we have some messages (e.g. from nav)
+      {/* Render ChatBox if we have a chatId AND (
+            messages exist OR 
+            (we are not explicitly loading the page AND there's no history error - for "Hello" prompt)
+          )
+      */}
+      {derivedChatId && (messages.length > 0 || (!showExplicitPageLoadingMessage && !historyLoadError)) && (
         <ChatBox  
-          key={derivedChatId} 
+          key={derivedChatId} // Ensures ChatBox remounts if chatId actually changes
           chatId={derivedChatId}  
           messages={messages}  
           onMessagesChange={handleMessagesChange} 
           onNewChatIdGenerated={(newChatId, initialMessagesFromChatBox) => {  
-            console.log(`ChatIdPage: Navigating to new chat ${newChatId} from ${derivedChatId} with initial messages:`, initialMessagesFromChatBox);
-            // When navigating to a new chat, set navStateAppliedRef for the new route
-            navStateAppliedRef.current = true; 
+            console.log(`ChatIdPage: Navigating to new chat ${newChatId} from ${derivedChatId} with initial messages count: ${initialMessagesFromChatBox.length}`);
+            // The new ChatIdPage instance will initialize its own navStateAppliedRef.current based on its location.state.
             navigate(`/chat/${newChatId}`, {  
               replace: true,  
               state: { initialMessages: initialMessagesFromChatBox },  
@@ -497,259 +564,258 @@ startTransition(() => {
 });
 --- app/components/chat-ui/ChatBox.tsx ---
 // app/components/chat-ui/ChatBox.tsx  
-  
-import * as React from "react";  
-import { ChatMessagesOutput, Message } from "./ChatMessagesOutput";  
-import { ChatInput } from "./ChatInput";  
-import modelList from "./ChatModelList.json"; 
+
+import * as React from "react";
+import { ChatMessagesOutput, Message } from "./ChatMessagesOutput";
+import { ChatInput } from "./ChatInput";
+import modelList from "./ChatModelList.json";
 // import { useIsMobile } from "~/hooks/use-mobile"; // useIsMobile can be used if more specific mobile logic is needed here
 
-const EXTERNAL_API_URL = "https://api-chat.kwikon.club/api/chat/stream";  
-  
-interface ModelMeta {  
-  displayName: string;  
-  model: string;  
-  provider: string;  
-}  
-  
-interface ChatBoxProps {  
-  chatId: string | undefined; 
-  messages: Message[];  
-  onMessagesChange: React.Dispatch<React.SetStateAction<Message[]>>;  
-  onNewChatIdGenerated: (newChatId: string, initialMessages: Message[]) => void;  
-}  
-  
-export function ChatBox({  
-  chatId,  
-  messages, 
-  onMessagesChange, 
-  onNewChatIdGenerated,  
-}: ChatBoxProps) {  
-  console.log(`ChatBox RENDER: chatId: ${chatId}, PROPS messages count: ${messages.length}, last prop message: ${messages[messages.length-1]?.content.slice(0,30) || 'N/A'}`);
+const EXTERNAL_API_URL = "https://api-chat.kwikon.club/api/chat/stream";
 
-  const [models] = React.useState<ModelMeta[]>(modelList);  
-  const [selectedModel, setSelectedModel] = React.useState<ModelMeta>(models[0]);  
-  const [input, setInput] = React.useState("");  
-  const [isLoading, setIsLoading] = React.useState(false);  
-  const [error, setError] = React.useState<Error | null>(null);  
-  
-  const messagesEndRef = React.useRef<HTMLDivElement>(null);  
-  const chatInputWrapperRef = React.useRef<HTMLDivElement>(null);  
+interface ModelMeta {
+  displayName: string;
+  model: string;
+  provider: string;
+}
+
+interface ChatBoxProps {
+  chatId: string | undefined;
+  messages: Message[];
+  onMessagesChange: React.Dispatch<React.SetStateAction<Message[]>>;
+  onNewChatIdGenerated: (newChatId: string, initialMessages: Message[]) => void;
+}
+
+export function ChatBox({
+  chatId,
+  messages,
+  onMessagesChange,
+  onNewChatIdGenerated,
+}: ChatBoxProps) {
+  // console.log(`ChatBox RENDER: chatId: ${chatId}, PROPS messages count: ${messages.length}, last prop message: ${messages[messages.length-1]?.content.slice(0,30) || 'N/A'}`);
+
+  const [models] = React.useState<ModelMeta[]>(modelList);
+  const [selectedModel, setSelectedModel] = React.useState<ModelMeta>(models[0]);
+  const [input, setInput] = React.useState("");
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<Error | null>(null);
+
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const chatInputWrapperRef = React.useRef<HTMLDivElement>(null);
   const [chatInputHeight, setChatInputHeight] = React.useState(90); // Default height
   // const isMobile = useIsMobile(); // Available if needed
-  
-  React.useEffect(() => {  
-    const inputWrapper = chatInputWrapperRef.current;  
-    if (inputWrapper) {  
-      const updateHeight = () => {  
-        const newHeight = inputWrapper.offsetHeight;  
+
+  React.useEffect(() => {
+    const inputWrapper = chatInputWrapperRef.current;
+    if (inputWrapper) {
+      const updateHeight = () => {
+        const newHeight = inputWrapper.offsetHeight;
         if (newHeight > 0 && newHeight !== chatInputHeight) { // Only update if changed
-            setChatInputHeight(newHeight);  
+          setChatInputHeight(newHeight);
         }
-      };  
-      updateHeight(); 
-      const resizeObserver = new ResizeObserver(updateHeight);  
-      resizeObserver.observe(inputWrapper);  
+      };
+      updateHeight();
+      const resizeObserver = new ResizeObserver(updateHeight);
+      resizeObserver.observe(inputWrapper);
       // No need for window resize listener if ResizeObserver handles textarea growth
       // window.addEventListener("resize", updateHeight); 
-      return () => {  
+      return () => {
         // Check inputWrapper on cleanup as it might be unmounted
         if (chatInputWrapperRef.current) { // Use ref.current for cleanup
-            resizeObserver.unobserve(chatInputWrapperRef.current);  
+          resizeObserver.unobserve(chatInputWrapperRef.current);
         }
-        resizeObserver.disconnect();  
+        resizeObserver.disconnect();
         // window.removeEventListener("resize", updateHeight);  
-      };  
-    }  
+      };
+    }
   }, [chatInputHeight]); // Re-run if chatInputHeight changes (e.g. initial value)
-  
+
   React.useEffect(() => {
-    console.log(`ChatBox EFFECT [messages, isLoading, chatInputHeight]: PROPS messages count: ${messages.length}, Last prop message: ${messages[messages.length-1]?.content.slice(0,30) || 'N/A'}, isLoading: ${isLoading}`);
-    if (messagesEndRef.current) {  
-      const isAssistantStreaming =  
-        isLoading &&  
-        messages.length > 0 &&  
-        messages[messages.length - 1].role === "assistant";  
+    console.log(`ChatBox EFFECT [messages, isLoading, chatInputHeight]: PROPS messages count: ${messages.length}, Last prop message: ${messages[messages.length - 1]?.content.slice(0, 30) || 'N/A'}, isLoading: ${isLoading}`);
+    if (messagesEndRef.current) {
+      const isAssistantStreaming =
+        isLoading &&
+        messages.length > 0 &&
+        messages[messages.length - 1].role === "assistant";
       // Smoother scroll, consider 'auto' for streaming for less jumpiness if preferred
-      const scrollBehavior = isAssistantStreaming && messages[messages.length -1].content.length < 100 ? "auto" : "smooth";  
-  
-      requestAnimationFrame(() => {  
-        if (messagesEndRef.current) {  
-          messagesEndRef.current.scrollIntoView({ behavior: scrollBehavior, block: "end" });  
-        }  
-      });  
-    }  
-  }, [messages, isLoading, chatInputHeight]); 
-  
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) =>  
-    setInput(e.target.value);  
-  
-  const handleModelChange = (modelValue: string) => {  
-    const found = models.find((m) => m.model === modelValue);  
-    if (found) setSelectedModel(found);  
-  };  
-  
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {  
-    e.preventDefault();  
-    if (!input.trim() || isLoading) return;  
+      const scrollBehavior = isAssistantStreaming && messages[messages.length - 1].content.length < 100 ? "auto" : "smooth";
+
+      requestAnimationFrame(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: scrollBehavior, block: "end" });
+        }
+      });
+    }
+  }, [messages, isLoading, chatInputHeight]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) =>
+    setInput(e.target.value);
+
+  const handleModelChange = (modelValue: string) => {
+    const found = models.find((m) => m.model === modelValue);
+    if (found) setSelectedModel(found);
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
     console.log(`ChatBox handleSubmit: chatId: ${chatId}, Input: "${input.trim()}"`);
-    setError(null);  
-  
-    const newUserMsg: Message = {  
-      id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
-      role: "user",  
-      content: input.trim(),  
-    };  
-    
-    console.log(`ChatBox handleSubmit: Calling onMessagesChange to ADD USER message. ID: ${newUserMsg.id}, Content: "${newUserMsg.content.slice(0,30)}"`);
+    setError(null);
+
+    const newUserMsg: Message = {
+      id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      role: "user",
+      content: input.trim(),
+    };
+
+    console.log(`ChatBox handleSubmit: Calling onMessagesChange to ADD USER message. ID: ${newUserMsg.id}, Content: "${newUserMsg.content.slice(0, 30)}"`);
     onMessagesChange((prevMsgs) => {
       console.log(`ChatBox onMessagesChange (ADD USER) CB: prevMsgs count: ${prevMsgs.length}. Adding user msg ID: ${newUserMsg.id}`);
       const newMsgs = [...prevMsgs, newUserMsg];
-      console.log(`ChatBox onMessagesChange (ADD USER) CB: newMsgs count: ${newMsgs.length}. Last is: ${newMsgs[newMsgs.length-1]?.id}`);
+      console.log(`ChatBox onMessagesChange (ADD USER) CB: newMsgs count: ${newMsgs.length}. Last is: ${newMsgs[newMsgs.length - 1]?.id}`);
       return newMsgs;
-    });  
-    setInput(""); 
-    setIsLoading(true);  
+    });
+    setInput("");
+    setIsLoading(true);
     console.log(`ChatBox handleSubmit: Set isLoading to true. ChatId: ${chatId}`);
-  
+
     const assistantMsgId = `assistant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    let accumulatedAssistantText = ""; 
+    let accumulatedAssistantText = "";
     console.log(`ChatBox handleSubmit: Generated assistantMsgId for upcoming stream: ${assistantMsgId}. ChatId: ${chatId}`);
-  
+
     onMessagesChange((prevMsgs) => {
       console.log(`ChatBox onMessagesChange (ADD ASSISTANT PLACEHOLDER) CB: prevMsgs count: ${prevMsgs.length}. Adding assistant placeholder ID: ${assistantMsgId}`);
       return [
         ...prevMsgs,
-        { id: assistantMsgId, role: "assistant", content: "" }, 
+        { id: assistantMsgId, role: "assistant", content: "" },
       ];
     });
 
-    try {  
-      const requestBody: {  
-        chatId?: string;  
-        message: string;  
-        systemPrompt?: string;  
-        provider: string;  
-        model: string;  
-      } = {  
-        message: newUserMsg.content,  
-        provider: selectedModel.provider,  
-        model: selectedModel.model,  
-      };  
-      if (chatId) {  
-        requestBody.chatId = chatId;  
-      }  
+    try {
+      const requestBody: {
+        chatId?: string;
+        message: string;
+        systemPrompt?: string;
+        provider: string;
+        model: string;
+      } = {
+        message: newUserMsg.content,
+        provider: selectedModel.provider,
+        model: selectedModel.model,
+      };
+      if (chatId) {
+        requestBody.chatId = chatId;
+      }
       console.log(`ChatBox handleSubmit: Fetching stream. API URL: ${EXTERNAL_API_URL}. Current chatId prop: ${chatId}. Request body:`, requestBody);
-  
-      const response = await fetch(EXTERNAL_API_URL, {  
-        method: "POST",  
-        headers: { "Content-Type": "application/json" },  
-        credentials: "include",  
-        body: JSON.stringify(requestBody),  
-      });  
-  
-      if (!response.ok || !response.body) {  
-        const errorBody = await response.text().catch(() => "Failed to read error body");  
-        const apiError = new Error(  
-          `API error: ${response.status} - ${response.statusText}${  
-            errorBody  
-              ? `\nDetails: ${errorBody.substring(0, 200)}...`  
-              : ""  
-          }`  
-        );
-        console.error(`ChatBox handleSubmit: API error. ChatId: ${chatId}`, apiError);  
-        setError(apiError);  
-        onMessagesChange((prevMsgs) => {
-            console.log(`ChatBox handleSubmit API ERROR: Filtering assistantMsgId ${assistantMsgId} if present.`);
-            // Replace placeholder with error message or remove it
-            const assistantMsgIndex = prevMsgs.findIndex(msg => msg.id === assistantMsgId);
-            if (assistantMsgIndex !== -1) {
-              const updatedMessages = [...prevMsgs];
-              updatedMessages[assistantMsgIndex] = {
-                ...updatedMessages[assistantMsgIndex],
-                content: `Sorry, I encountered an error: ${response.statusText || 'Network error'}. Please try again.`, 
-                // You could add an 'error: true' property to Message type for special styling
-              };
-              return updatedMessages;
-            }
-            return prevMsgs.filter((m) => m.id !== assistantMsgId); // Fallback if not found (should be)
-        });
-        return;  
-      }  
-  
-      const reader = response.body.getReader();  
-      const decoder = new TextDecoder();  
-      let done = false;  
-      let buffer = "";  
-      let newChatIdFromStream: string | null = null;  
-      let finalUsageSummary: any = null;  
-      let firstChunkReceived = false;
-      
-      const processStreamData = (jsonStr: string) => {
-        try {  
-          const data = JSON.parse(jsonStr);  
 
-          if (data.type === "session_info" && data.chatId) {  
-            if (!chatId && !newChatIdFromStream) { 
-              newChatIdFromStream = data.chatId;  
+      const response = await fetch(EXTERNAL_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok || !response.body) {
+        const errorBody = await response.text().catch(() => "Failed to read error body");
+        const apiError = new Error(
+          `API error: ${response.status} - ${response.statusText}${errorBody
+            ? `\nDetails: ${errorBody.substring(0, 200)}...`
+            : ""
+          }`
+        );
+        console.error(`ChatBox handleSubmit: API error. ChatId: ${chatId}`, apiError);
+        setError(apiError);
+        onMessagesChange((prevMsgs) => {
+          console.log(`ChatBox handleSubmit API ERROR: Filtering assistantMsgId ${assistantMsgId} if present.`);
+          // Replace placeholder with error message or remove it
+          const assistantMsgIndex = prevMsgs.findIndex(msg => msg.id === assistantMsgId);
+          if (assistantMsgIndex !== -1) {
+            const updatedMessages = [...prevMsgs];
+            updatedMessages[assistantMsgIndex] = {
+              ...updatedMessages[assistantMsgIndex],
+              content: `Sorry, I encountered an error: ${response.statusText || 'Network error'}. Please try again.`,
+              // You could add an 'error: true' property to Message type for special styling
+            };
+            return updatedMessages;
+          }
+          return prevMsgs.filter((m) => m.id !== assistantMsgId); // Fallback if not found (should be)
+        });
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let buffer = "";
+      let newChatIdFromStream: string | null = null;
+      let finalUsageSummary: any = null;
+      let firstChunkReceived = false;
+
+      const processStreamData = (jsonStr: string) => {
+        try {
+          const data = JSON.parse(jsonStr);
+
+          if (data.type === "session_info" && data.chatId) {
+            if (!chatId && !newChatIdFromStream) {
+              newChatIdFromStream = data.chatId;
               console.log(`ChatBox processStreamData: Received newChatIdFromStream: ${newChatIdFromStream} (current chatId prop is ${chatId})`);
-            }  
-          } else if (data.type === "usage_summary") {  
-            finalUsageSummary = data;  
+            }
+          } else if (data.type === "usage_summary") {
+            finalUsageSummary = data;
             console.log(`ChatBox processStreamData: Received usage_summary for chatId ${chatId}.`);
-          } else if (typeof data.content === "string") { 
-            accumulatedAssistantText += data.content;  
+          } else if (typeof data.content === "string") {
+            accumulatedAssistantText += data.content;
             if (!firstChunkReceived) firstChunkReceived = true;
-            
+
             onMessagesChange((prevMsgs) => {
               const assistantMsgIndex = prevMsgs.findIndex(msg => msg.id === assistantMsgId);
               if (assistantMsgIndex !== -1) {
-                const updatedMessages = [...prevMsgs]; 
+                const updatedMessages = [...prevMsgs];
                 updatedMessages[assistantMsgIndex] = {
                   ...updatedMessages[assistantMsgIndex],
                   content: accumulatedAssistantText,
                 };
                 return updatedMessages;
               }
-              return prevMsgs; 
+              return prevMsgs;
             });
-          }  
-        } catch (err) {  
-          console.warn(`ChatBox processStreamData: Error parsing stream data for chatId ${chatId}:`, err, "Data:", jsonStr);  
-        }  
+          }
+        } catch (err) {
+          console.warn(`ChatBox processStreamData: Error parsing stream data for chatId ${chatId}:`, err, "Data:", jsonStr);
+        }
       };
 
       console.log(`ChatBox handleSubmit: Starting stream read loop for assistantMsgId ${assistantMsgId}. ChatId: ${chatId}`);
-      while (!done) {  
-        const { value, done: doneReading } = await reader.read();  
-        if (value) {  
-          let chunk = decoder.decode(value, { stream: true });  
-          buffer += chunk;  
-  
-          const lines = buffer.split("\n");  
-          buffer = lines.pop()!; 
-  
-          for (const line of lines) {  
-            const cleanLine = line.trim();  
-            if (cleanLine === "" || cleanLine === "[DONE]" || cleanLine === "data: [DONE]") continue;  
-            if (cleanLine.startsWith("data:")) {  
-              processStreamData(cleanLine.substring(5).trim());
-            }  
-          }  
-        }  
-        done = doneReading;  
-      }
-      console.log(`ChatBox handleSubmit: Stream read loop finished for assistantMsgId ${assistantMsgId}. ChatId: ${chatId}`);  
-      
-      if (buffer.trim()) { 
-        const cleanLine = buffer.trim();  
-        if (cleanLine.startsWith("data:")) {
-          console.log(`ChatBox handleSubmit: Processing final buffer content for assistantMsgId ${assistantMsgId}. ChatId: ${chatId}`);  
-          processStreamData(cleanLine.substring(5).trim());
-        }  
-      }  
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        if (value) {
+          let chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
 
-      if (!firstChunkReceived && !error) { 
+          const lines = buffer.split("\n");
+          buffer = lines.pop()!;
+
+          for (const line of lines) {
+            const cleanLine = line.trim();
+            if (cleanLine === "" || cleanLine === "[DONE]" || cleanLine === "data: [DONE]") continue;
+            if (cleanLine.startsWith("data:")) {
+              processStreamData(cleanLine.substring(5).trim());
+            }
+          }
+        }
+        done = doneReading;
+      }
+      console.log(`ChatBox handleSubmit: Stream read loop finished for assistantMsgId ${assistantMsgId}. ChatId: ${chatId}`);
+
+      if (buffer.trim()) {
+        const cleanLine = buffer.trim();
+        if (cleanLine.startsWith("data:")) {
+          console.log(`ChatBox handleSubmit: Processing final buffer content for assistantMsgId ${assistantMsgId}. ChatId: ${chatId}`);
+          processStreamData(cleanLine.substring(5).trim());
+        }
+      }
+
+      if (!firstChunkReceived && !error) {
         onMessagesChange(prevMsgs => {
           const assistantMsg = prevMsgs.find(m => m.id === assistantMsgId);
           if (assistantMsg && assistantMsg.content === "") {
@@ -757,116 +823,115 @@ export function ChatBox({
             // Could update to "No response received." if desired.
             // For now, leaving it as empty string as per original logic.
           }
-          return prevMsgs; 
+          return prevMsgs;
         });
       }
-  
-      if (newChatIdFromStream && !chatId && onNewChatIdGenerated) {  
-        const confirmedNewChatId: string = newChatIdFromStream; 
-        console.log(`ChatBox handleSubmit: Calling onNewChatIdGenerated. New ChatId: ${confirmedNewChatId}. Accumulated AI Text: "${accumulatedAssistantText.slice(0,30)}"`);
-        
-        onMessagesChange(currentMessages => { // Use the callback form to get latest messages
-            const userMessageForNewChat = currentMessages.find(m => m.id === newUserMsg.id);
-            const assistantMessageForNewChat = currentMessages.find(m => m.id === assistantMsgId);
 
-            if (userMessageForNewChat && assistantMessageForNewChat) {
-                 onNewChatIdGenerated(confirmedNewChatId, [userMessageForNewChat, assistantMessageForNewChat]);
-            } else {
-                console.warn("ChatBox: Could not find user/assistant messages for onNewChatIdGenerated. Fallback may be incomplete.");
-                const fallbackAssistantMessage: Message = {  
-                  id: assistantMsgId,  
-                  role: "assistant",  
-                  content: accumulatedAssistantText, 
-                };  
-                onNewChatIdGenerated(confirmedNewChatId, [newUserMsg, fallbackAssistantMessage]);
-            }
-            return currentMessages; // No change to messages needed here
+      if (newChatIdFromStream && !chatId && onNewChatIdGenerated) {
+        const confirmedNewChatId: string = newChatIdFromStream;
+        console.log(`ChatBox handleSubmit: Calling onNewChatIdGenerated. New ChatId: ${confirmedNewChatId}. Accumulated AI Text: "${accumulatedAssistantText.slice(0, 30)}"`);
+
+        onMessagesChange(currentMessages => { // Use the callback form to get latest messages
+          const userMessageForNewChat = currentMessages.find(m => m.id === newUserMsg.id);
+          const assistantMessageForNewChat = currentMessages.find(m => m.id === assistantMsgId);
+
+          if (userMessageForNewChat && assistantMessageForNewChat) {
+            onNewChatIdGenerated(confirmedNewChatId, [userMessageForNewChat, assistantMessageForNewChat]);
+          } else {
+            console.warn("ChatBox: Could not find user/assistant messages for onNewChatIdGenerated. Fallback may be incomplete.");
+            const fallbackAssistantMessage: Message = {
+              id: assistantMsgId,
+              role: "assistant",
+              content: accumulatedAssistantText,
+            };
+            onNewChatIdGenerated(confirmedNewChatId, [newUserMsg, fallbackAssistantMessage]);
+          }
+          return currentMessages; // No change to messages needed here
         });
-      }  
-  
-    } catch (err: any) {  
-      console.error(`ChatBox handleSubmit: CATCH block for submission/streaming error. ChatId: ${chatId}:`, err);  
+      }
+
+    } catch (err: any) {
+      console.error(`ChatBox handleSubmit: CATCH block for submission/streaming error. ChatId: ${chatId}:`, err);
       const newError = err instanceof Error ? err : new Error("Unknown error occurred during streaming.");
-      setError(newError);  
+      setError(newError);
       onMessagesChange((prevMsgs) => {
-          console.log(`ChatBox handleSubmit CATCH: Updating or filtering assistantMsgId ${assistantMsgId}.`);
-          const assistantMsgIndex = prevMsgs.findIndex(msg => msg.id === assistantMsgId);
-            if (assistantMsgIndex !== -1) {
-              const updatedMessages = [...prevMsgs];
-              updatedMessages[assistantMsgIndex] = {
-                ...updatedMessages[assistantMsgIndex],
-                content: `Sorry, an unexpected error occurred: ${newError.message}. Please try again.`,
-              };
-              return updatedMessages;
-            }
-          return prevMsgs.filter((m) => m.id !== assistantMsgId);
+        console.log(`ChatBox handleSubmit CATCH: Updating or filtering assistantMsgId ${assistantMsgId}.`);
+        const assistantMsgIndex = prevMsgs.findIndex(msg => msg.id === assistantMsgId);
+        if (assistantMsgIndex !== -1) {
+          const updatedMessages = [...prevMsgs];
+          updatedMessages[assistantMsgIndex] = {
+            ...updatedMessages[assistantMsgIndex],
+            content: `Sorry, an unexpected error occurred: ${newError.message}. Please try again.`,
+          };
+          return updatedMessages;
+        }
+        return prevMsgs.filter((m) => m.id !== assistantMsgId);
       });
-    } finally {  
-      setIsLoading(false);  
+    } finally {
+      setIsLoading(false);
       console.log(`ChatBox handleSubmit: FINALLY block. Set isLoading to false. ChatId: ${chatId}`);
-    }  
-  };  
-  
+    }
+  };
+
   const PADDING_BUFFER = 16; // Increased buffer slightly for better spacing
-  
-  return (  
-    <div className="flex flex-col h-dvh min-h-dvh w-full bg-background min-w-0">  
-      <div  
-        className="flex-1 overflow-y-auto pt-6 px-4 min-w-0"  
-        style={{  
-          paddingBottom:  
-            chatInputHeight > 0  
-              ? `${chatInputHeight + PADDING_BUFFER}px`  
+
+  return (
+    <div className="flex flex-col h-dvh min-h-dvh w-full bg-background min-w-0">
+      <div
+        className="flex-1 overflow-y-auto pt-6 px-4 min-w-0"
+        style={{
+          paddingBottom:
+            chatInputHeight > 0
+              ? `${chatInputHeight + PADDING_BUFFER}px`
               : `${90 + PADDING_BUFFER}px`, // Fallback padding
-        }}  
-      >  
-        <div  
-          className={`max-w-3xl mx-auto w-full ${  
-            messages.length === 0 && !isLoading && !error 
+        }}
+      >
+        <div
+          className={`max-w-3xl mx-auto w-full ${messages.length === 0 && !isLoading && !error
               ? "flex flex-col justify-center min-h-full" // For centering "Hello" message
-              : ""  
-          }`}  
-        >  
+              : ""
+            }`}
+        >
           {error && !isLoading && ( // Show error only if not actively loading a new response
-            <div className="mb-4 p-4 rounded-lg border text-destructive border-destructive bg-destructive/10">  
-              <strong>Error:</strong> {error.message || "An error occurred."}  
-            </div>  
-          )}  
-          {messages.length === 0 && !isLoading && !error && (  
-            <div className="text-center py-8">  
-              <h1 className="text-4xl font-semibold text-foreground">Hello</h1>  
-              <p className="text-muted-foreground mt-2 text-lg">  
-                How can I help you today?  
-              </p>  
-            </div>  
-          )}  
+            <div className="mb-4 p-4 rounded-lg border text-destructive border-destructive bg-destructive/10">
+              <strong>Error:</strong> {error.message || "An error occurred."}
+            </div>
+          )}
+          {messages.length === 0 && !isLoading && !error && (
+            <div className="text-center py-8">
+              <h1 className="text-4xl font-semibold text-foreground">Hello</h1>
+              <p className="text-muted-foreground mt-2 text-lg">
+                How can I help you today?
+              </p>
+            </div>
+          )}
           {/* Always render ChatMessagesOutput if there are messages or if it's loading, to show placeholders */}
           {(messages.length > 0 || isLoading) && (
-            <ChatMessagesOutput messages={messages} isLoading={isLoading} />  
-          )}  
-          <div ref={messagesEndRef} />  
-        </div>  
-      </div>  
-  
+            <ChatMessagesOutput messages={messages} isLoading={isLoading} />
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
       {/* Input Area Wrapper */}
-      <div 
-        ref={chatInputWrapperRef} 
+      <div
+        ref={chatInputWrapperRef}
         className="px-4 bg-background border-t border-border/60 shadow- ऊपर" // Added border-t for separation
-      >  
+      >
         <div className="max-w-[832px] mx-auto w-full py-2.5 md:py-3.5"> {/* Slightly adjusted padding */}
-          <ChatInput  
-            input={input}  
-            onChange={handleInputChange}  
-            onSubmit={handleSubmit}  
-            isLoading={isLoading}  
-            models={models}  
-            selectedModel={selectedModel.model}  
-            onModelChange={handleModelChange}  
-          />  
-        </div>  
-      </div>  
-    </div>  
-  );  
+          <ChatInput
+            input={input}
+            onChange={handleInputChange}
+            onSubmit={handleSubmit}
+            isLoading={isLoading}
+            models={models}
+            selectedModel={selectedModel.model}
+            onModelChange={handleModelChange}
+          />
+        </div>
+      </div>
+    </div>
+  );
 }--- app/components/chat-ui/ChatMessagesOutput.tsx ---
 // app/components/chat-ui/ChatMessagesOutput.tsx
 import React from "react";
@@ -1128,58 +1193,468 @@ export function ChatMessagesOutput({ messages, isLoading }: ChatMessagesOutputPr
     </div>
   );
 }--- app/components/chat-ui/PageLayout.tsx ---
-import * as React from "react";  
-export function PageLayout({ children }: { children: React.ReactNode }) {  
+// app/components/chat-ui/PageLayout.tsx
+import * as React from "react";
+import { useNavigate } from "@remix-run/react";
+import { Sidebar } from "./Sidebar";
+import { cn } from "~/lib/utils"; // Ensure cn is imported
+
+export function PageLayout({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
+  const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = React.useState(false);
+
+  function handleNewChat() {
+    navigate("/");
+  }
+
+  function toggleDesktopSidebar() {
+    setIsDesktopSidebarCollapsed(prev => !prev);
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex flex-row">
+      <Sidebar
+        onNewChat={handleNewChat}
+        isDesktopCollapsed={isDesktopSidebarCollapsed}
+        onToggleDesktopCollapse={toggleDesktopSidebar}
+      />
+      <main className={cn(
+        "flex-1 flex flex-col relative max-w-full overflow-x-hidden", // Added overflow-x-hidden
+        "transition-all duration-300 ease-in-out", // For smooth margin transition
+        "ml-0", // Base margin for mobile (content starts at edge)
+        isDesktopSidebarCollapsed ? "md:ml-20" : "md:ml-72" // Dynamic margin for desktop
+      )}>
+        {children}
+      </main>
+    </div>
+  );
+}--- app/components/chat-ui/Sidebar.tsx ---
+import React, { useState, useEffect, useRef } from "react";  
+import { useNavigate } from "@remix-run/react";  
+import { cn } from "~/lib/utils";  
+import {  
+  FaCommentDots,  
+  FaPlus,  
+  FaBars,  
+  FaUserCircle,  
+  FaChevronLeft,  
+  FaChevronRight,  
+  FaTimes,  
+} from "react-icons/fa";  
+import FocusTrap from "focus-trap-react";  
+  
+// --- BUTTON COMPONENT ---  
+type ButtonSize = "sm" | "default" | "lg" | "xs";  
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {  
+  variant?: "primary" | "secondary" | "ghost" | "outline";  
+  size?: ButtonSize;  
+  leftIcon?: React.ReactNode;  
+  rightIcon?: React.ReactNode;  
+  isCollapsed?: boolean;  
+}  
+  
+/**  
+ * Consistent, scalable Button, with smart icon-only detection and sizing.  
+ */  
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(  
+  (  
+    {  
+      className,  
+      variant = "primary",  
+      size = "sm",  
+      leftIcon,  
+      rightIcon,  
+      children,  
+      isCollapsed,  
+      ...props  
+    },  
+    ref  
+  ) => {  
+    // Standardized size config with all keys for all sizes!  
+    const sizeConfig: Record<  
+      ButtonSize,  
+      { h: string; w: string; px: string; py: string; text: string }  
+    > = {  
+      xs: { h: "h-8", w: "w-8", px: "px-0", py: "py-0", text: "text-xs" }, // 32  
+      sm: { h: "h-10", w: "w-10", px: "px-2", py: "py-0", text: "text-sm" }, // 40  
+      default: { h: "h-11", w: "w-11", px: "px-4", py: "py-2", text: "text-base" }, // 44  
+      lg: { h: "h-12", w: "w-12", px: "px-6", py: "py-2", text: "text-lg" }, // 48  
+    };  
+  
+    const baseStyles =  
+      "inline-flex items-center justify-center rounded-md font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none transition-colors whitespace-nowrap select-none";  
+  
+    const variantStyles = {  
+      primary: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm",  
+      secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",  
+      ghost: "hover:bg-accent hover:text-accent-foreground",  
+      outline: "border border-input hover:bg-accent hover:text-accent-foreground",  
+    };  
+  
+    // Text render logic  
+    const hasVisibleTextChildren = React.Children.toArray(children).some(  
+      (child) => typeof child === "string" && child.trim() !== ""  
+    );  
+    const shouldShowText = !isCollapsed && hasVisibleTextChildren;  
+    const isEffectivelyIconOnly =  
+      (leftIcon || rightIcon) && !shouldShowText;  
+  
+    // Handling sizing: If icon-only, make square and centered  
+    const s = sizeConfig[size];  
+    let currentSizeStyles: string;  
+    if (isEffectivelyIconOnly) {  
+      currentSizeStyles = cn(s.h, s.w /* square */, s.text);  
+    } else {  
+      currentSizeStyles = cn(s.h, s.px, s.py, s.text);  
+    }  
+    // For most desktop sidebars, size="sm" (40x40) is ideal  
+  
+    return (  
+      <button  
+        className={cn(  
+          baseStyles,  
+          variantStyles[variant],  
+          currentSizeStyles,  
+          className  
+        )}  
+        ref={ref}  
+        {...props}  
+      >  
+        {leftIcon && (  
+          <span className={shouldShowText ? "mr-1.5" : ""}>{leftIcon}</span>  
+        )}  
+        {shouldShowText && children}  
+        {rightIcon && (  
+          <span className={shouldShowText ? "ml-1.5" : ""}>{rightIcon}</span>  
+        )}  
+        {/* Unlikely, but in case: Icon-only passed as children */}  
+        {!leftIcon && !rightIcon && !hasVisibleTextChildren && children}  
+      </button>  
+    );  
+  }  
+);  
+Button.displayName = "Button";  
+  
+// --- DRAWER (Mobile-only) ---  
+interface DrawerProps {  
+  isOpen: boolean;  
+  onClose: () => void;  
+  children: React.ReactNode;  
+  side?: "left" | "right";  
+}  
+function Drawer({ isOpen, onClose, children, side = "left" }: DrawerProps) {  
+  const drawerRef = useRef<HTMLDivElement>(null);  
+  
+  useEffect(() => {  
+    if (!isOpen) return;  
+    const esc = (event: KeyboardEvent) => event.key === "Escape" && onClose();  
+    document.addEventListener("keydown", esc);  
+    const out = (event: MouseEvent) => {  
+      if (  
+        drawerRef.current &&  
+        !drawerRef.current.contains(event.target as Node)  
+      ) {  
+        onClose();  
+      }  
+    };  
+    document.addEventListener("mousedown", out);  
+  
+    return () => {  
+      document.removeEventListener("keydown", esc);  
+      document.removeEventListener("mousedown", out);  
+    };  
+  }, [isOpen, onClose]);  
+  
   return (  
-    <div className="min-h-screen bg-background">  
-      <div className="flex flex-col flex-1">  
-        {/* Add mobile header if needed */}  
-        <main className="flex-1 flex flex-col relative">  
+    <FocusTrap active={isOpen}>  
+      <div  
+        className={cn(  
+          "fixed inset-0 z-50",  
+          isOpen ? "pointer-events-auto" : "pointer-events-none"  
+        )}  
+        aria-modal="true"  
+        role="dialog"  
+      >  
+        <div  
+          className={cn(  
+            "fixed inset-0 bg-black/60 transition-opacity duration-300 ease-in-out",  
+            isOpen ? "opacity-100" : "opacity-0"  
+          )}  
+          onClick={onClose}  
+          aria-hidden="true"  
+        />  
+        <aside  
+          ref={drawerRef}  
+          className={cn(  
+            "absolute top-0 bottom-0 z-[51] bg-card shadow-xl flex flex-col transition-transform duration-300 ease-in-out",  
+            "w-[min(80vw,320px)] sm:w-[min(60vw,350px)]",  
+            side === "left" ? "left-0 border-r border-border" : "right-0 border-l border-border",  
+            side === "left" && (isOpen ? "translate-x-0" : "-translate-x-full"),  
+            side === "right" && (isOpen ? "translate-x-0" : "translate-x-full")  
+          )}  
+        >  
           {children}  
-        </main>  
+        </aside>  
       </div>  
+    </FocusTrap>  
+  );  
+}  
+  
+// --- SIDEBAR HEADER ---  
+interface SidebarHeaderProps { onToggle?: () => void; isDesktop?: boolean; }  
+function SidebarHeader({ onToggle, isDesktop }: SidebarHeaderProps) {  
+  return (  
+    <div className="relative h-14 flex-shrink-0 w-full border-b border-border px-3 flex items-center justify-between">  
+      <div className="flex items-center gap-2.5 min-w-0">  
+        <span>  
+          <FaCommentDots size={20} className="text-primary flex-shrink-0" />  
+        </span>  
+        <span  
+          id={isDesktop ? "sidebar-title" : "drawer-title"}  
+          className="font-semibold text-base tracking-tight text-foreground select-none truncate"  
+        >  
+          Krivi AI  
+        </span>  
+      </div>  
+      {onToggle && (  
+        <Button  
+          variant="ghost"  
+          size="sm"  
+          onClick={onToggle}  
+          aria-label={isDesktop ? "Collapse sidebar" : "Close sidebar"}  
+          title={isDesktop ? "Collapse sidebar" : "Close sidebar"}  
+        >  
+          {isDesktop ? <FaChevronLeft size={18} /> : <FaTimes size={20} />}  
+        </Button>  
+      )}  
     </div>  
   );  
-}  --- app/components/chat-ui/Sidebar.tsx ---
-import { cn } from "~/lib/utils";  
-import { Home, MessageCircle, Settings } from "lucide-react";  
-import React from "react";  
+}  
   
-const navItems = [  
-  { label: "Home", icon: <Home size={20} />, href: "#" },  
-  { label: "Chats", icon: <MessageCircle size={20} />, href: "#" },  
-  { label: "Settings", icon: <Settings size={20} />, href: "#" },  
-];  
-  
-export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {  
+// --- CONSISTENT MINIMAL SIDEBAR (Sidebar Collapsed) ---  
+interface MinimalSidebarProps { onExpand: () => void; onNewChat: () => void; }  
+/**  
+ * Minimal Sidebar (icon-only) with consistent button sizes; feels the same open/collapsed.  
+ */  
+function MinimalSidebar({ onExpand, onNewChat }: MinimalSidebarProps) {  
   return (  
-    <aside  
-      className={cn(  
-        "fixed inset-y-0 left-0 z-40 w-64 bg-card shadow transition-transform duration-200",  
-        open ? "translate-x-0" : "-translate-x-full",  
-        "md:translate-x-0"  
-      )}  
-    >  
-      <div className="flex items-center h-16 px-4 border-b border-border text-xl font-bold text-foreground">Logo</div>  
-      <nav className="p-4">  
-        <ul>  
-          {navItems.map((item) => (  
-            <li key={item.label} className="mb-2">  
-              <a  
-                href={item.href}  
-                className="flex items-center p-2 rounded-md hover:bg-muted gap-2 font-medium text-foreground"  
-              >  
-                {item.icon}  
-                {item.label}  
-              </a>  
-            </li>  
-          ))}  
-        </ul>  
+    <div className="hidden md:flex fixed inset-y-0 left-0 z-40 flex-col w-16 bg-card border-r border-border items-center py-3 space-y-2">  
+      {/* Top expand/collapse button */}  
+      <div className="w-full border-b border-border pb-3 flex justify-center">  
+        <Button  
+          variant="ghost"  
+          // Consistent medium size!  
+          size="sm"  
+          onClick={onExpand}  
+          aria-label="Expand sidebar"  
+          title="Expand sidebar"  
+        >  
+          <FaBars size={18} />  
+        </Button>  
+      </div>  
+      {/* Main (new chat) button */}  
+      <Button  
+        variant="primary"  
+        size="sm"  
+        onClick={onNewChat}  
+        aria-label="New chat"  
+        title="New chat"  
+      >  
+        <FaPlus size={16} />  
+      </Button>  
+    </div>  
+  );  
+}  
+  
+// --- EXPANDED SIDEBAR CONTENT ---  
+interface SidebarContentProps {  
+  onNewChat: () => void;  
+  onCloseDrawer?: () => void;  
+  onCollapseToggle?: () => void;  
+  isDesktop?: boolean;  
+}  
+function SidebarContent({  
+  onNewChat,  
+  onCloseDrawer,  
+  onCollapseToggle,  
+  isDesktop,  
+}: SidebarContentProps) {  
+  const navigate = useNavigate();  
+  
+  const handleNewChatClick = () => {  
+    onNewChat();  
+    if (onCloseDrawer) onCloseDrawer();  
+  };  
+  
+  const chatSessions = [  
+    { id: "1", name: "Discussing Q3 Goals & Key Results" },  
+    { id: "2", name: "Project Phoenix Brainstorming Session" },  
+    { id: "3", name: "Feedback on new UI draft v2.1" },  
+    { id: "4", name: "API Rate Limits Question" },  
+  ];  
+  const [activeSessionId, setActiveSessionId] = useState<string | null>("2");  
+  
+  const handleSessionClick = (sessionId: string) => {  
+    setActiveSessionId(sessionId);  
+    navigate(`/chat/${sessionId}`);  
+    if (onCloseDrawer) onCloseDrawer();  
+  };  
+  
+  return (  
+    <>  
+      <SidebarHeader  
+        onToggle={isDesktop ? onCollapseToggle : onCloseDrawer}  
+        isDesktop={isDesktop}  
+      />  
+      <div className="p-3 flex-shrink-0">  
+        <Button  
+          variant="primary"  
+          size="sm"  
+          className="w-full"  
+          onClick={handleNewChatClick}  
+          leftIcon={<FaPlus size={16} />}  
+          title="New Chat"  
+          aria-label="Start a new chat"  
+        >  
+          New Chat  
+        </Button>  
+      </div>  
+      <nav  
+        className="flex-1 overflow-y-auto py-1 px-2 space-y-0.5 min-h-0"  
+        aria-label="Chat history"  
+      >  
+        {chatSessions.length > 0 ? (  
+          chatSessions.map((session) => (  
+            <a  
+              key={session.id}  
+              href={`/chat/${session.id}`}  
+              onClick={(e) => {  
+                e.preventDefault();  
+                handleSessionClick(session.id);  
+              }}  
+              className={cn(  
+                "flex items-center gap-2.5 py-2 px-2.5 rounded-md text-sm font-medium group",  
+                "transition-colors duration-150 h-10",  
+                activeSessionId === session.id  
+                  ? "bg-primary/10 text-primary"  
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"  
+              )}  
+              title={session.name}  
+            >  
+              <FaCommentDots  
+                size={16}  
+                className={cn(  
+                  "flex-shrink-0",  
+                  activeSessionId === session.id  
+                    ? "text-primary"  
+                    : "text-muted-foreground group-hover:text-accent-foreground"  
+                )}  
+              />  
+              <span className="truncate flex-1">{session.name}</span>  
+            </a>  
+          ))  
+        ) : (  
+          <div className="text-muted-foreground text-center mt-8 text-xs select-none px-2">  
+            No conversations yet.<br />  
+            Your chats will appear here.  
+          </div>  
+        )}  
       </nav>  
-      <button onClick={onClose} className="md:hidden absolute top-2 right-2 p-2 text-2xl text-muted-foreground">  
-        ×  
-      </button>  
-    </aside>  
+      <div className="mt-auto pt-2 pb-3 px-3 flex-shrink-0 border-t border-border">  
+        <Button  
+          variant="ghost"  
+          size="sm"  
+          className="w-full justify-start text-left"  
+          onClick={() => {  
+            navigate("/profile");  
+            if (onCloseDrawer) onCloseDrawer();  
+          }}  
+          leftIcon={<FaUserCircle size={18} />}  
+          title="My Profile"  
+          aria-label="View your profile"  
+        >  
+          My Profile  
+        </Button>  
+      </div>  
+    </>  
+  );  
+}  
+  
+// --- SIDEBAR MAIN ---  
+export interface SidebarProps {  
+  onNewChat: () => void;  
+  className?: string;  
+  isDesktopCollapsed: boolean;  
+  onToggleDesktopCollapse: () => void;  
+}  
+/**  
+ * Responsive Sidebar (mobile, expanded, collapsed). Consistent medium sizing.  
+ */  
+export function Sidebar({  
+  onNewChat,  
+  className,  
+  isDesktopCollapsed,  
+  onToggleDesktopCollapse,  
+}: SidebarProps) {  
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);  
+  
+  return (  
+    <>  
+      {/* MOBILE: Hamburger open sidebar */}  
+      {!isMobileDrawerOpen && (  
+        <div className="md:hidden fixed top-3 left-3 z-[60]">  
+          <Button  
+            variant="outline"  
+            size="sm"  
+            onClick={() => setIsMobileDrawerOpen(true)}  
+            aria-label="Open sidebar"  
+            className="p-2 shadow-md !rounded-lg"  
+            title="Open sidebar"  
+          >  
+            <FaBars size={18} />  
+          </Button>  
+        </div>  
+      )}  
+  
+      {/* DESKTOP: Minimal Collapsed Sidebar */}  
+      {isDesktopCollapsed && (  
+        <MinimalSidebar  
+          onExpand={onToggleDesktopCollapse}  
+          onNewChat={onNewChat}  
+        />  
+      )}  
+  
+      {/* DESKTOP: Expanded Sidebar */}  
+      {!isDesktopCollapsed && (  
+        <aside  
+          className={cn(  
+            "hidden md:flex fixed inset-y-0 left-0 z-40 flex-col max-h-screen bg-card border-r border-border",  
+            "transition-all duration-300 ease-in-out",  
+            "w-56", // 224px Amazon/Google style  
+            className  
+          )}  
+        >  
+          <SidebarContent  
+            onNewChat={onNewChat}  
+            isDesktop={true}  
+            onCollapseToggle={onToggleDesktopCollapse}  
+          />  
+        </aside>  
+      )}  
+  
+      {/* MOBILE: Drawer sidebar */}  
+      <Drawer  
+        isOpen={isMobileDrawerOpen}  
+        onClose={() => setIsMobileDrawerOpen(false)}  
+        side="left"  
+      >  
+        <SidebarContent  
+          onNewChat={onNewChat}  
+          onCloseDrawer={() => setIsMobileDrawerOpen(false)}  
+          isDesktop={false}  
+        />  
+      </Drawer>  
+    </>  
   );  
 }  --- app/components/chat-ui/ChatInput.tsx ---
 import * as React from "react";  
